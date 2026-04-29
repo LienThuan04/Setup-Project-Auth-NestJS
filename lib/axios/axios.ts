@@ -1,11 +1,28 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { ensureDeviceId } from '@/lib/cookie';
-import { shouldRefreshToken } from './refresh-exclude';
+import { shouldRefreshToken } from '@/lib/axios/refresh-exclude';
+import { User } from '@/redux/types';
+import { authAPI } from './api';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 const ACCESS_TOKEN_KEY = process.env.NEXT_PUBLIC_ACCESS_TOKEN_KEY;
 const AUTHORIZATION_HEADER = process.env.NEXT_PUBLIC_AUTHORIZATION_HEADER || 'Authorization';
 const BEARER_PREFIX = process.env.NEXT_PUBLIC_BEARER_PREFIX || 'Bearer';
+
+let getAccessToken: () => string | null = () => null;
+let dispatchSetAuth: (data: { accessToken: string; user: User | null }) => void = () => { };
+let dispatchClearAuth: () => void = () => { };
+
+// Hàm để inject store vào module axios, cho phép axios có thể truy cập token và dispatch action để cập nhật auth state
+export const injectStore = (
+  _getAccessToken: () => string | null,
+  _setAuth: (data: { accessToken: string; user: User | null }) => void,
+  _clearAuth: () => void
+) => {
+  getAccessToken = _getAccessToken;
+  dispatchSetAuth = _setAuth;
+  dispatchClearAuth = _clearAuth;
+};
 
 if (!API_URL || API_URL.trim() === '') {
   throw new Error('API URL is not defined in environment variables');
@@ -27,7 +44,8 @@ axiosInstance.interceptors.request.use(
     // Đảm bảo cookie deviceId tồn tại (backend sẽ đọc từ cookie)
     ensureDeviceId();
 
-    const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+
+    const token = getAccessToken();
     if (token) {
       config.headers[AUTHORIZATION_HEADER] = `${BEARER_PREFIX} ${token}`;
     }
@@ -84,12 +102,13 @@ axiosInstance.interceptors.response.use(
 
       try {
         // Gọi refresh token – backend sẽ lấy deviceId từ refresh token trong cookie
-        const response = await axios.post(`${API_URL}/auth/refresh`);
+         const response = await authAPI.refreshToken();
         //--------------------------------------------------------------------------
-        const newToken = response.data[ACCESS_TOKEN_KEY] || response.data['accessToken'];
+        const newToken = response.data?.data?.accessToken;
+        const newUser = response.data?.data?.user;
         if (!newToken) throw new Error('No access token returned from refresh');
-
-        localStorage.setItem(ACCESS_TOKEN_KEY, newToken);
+        // Cập nhật token mới vào store và header của axios
+        dispatchSetAuth({ accessToken: newToken, user: newUser || null });
         axiosInstance.defaults.headers.common[AUTHORIZATION_HEADER] = `${BEARER_PREFIX} ${newToken}`;
         originalRequest.headers[AUTHORIZATION_HEADER] = `${BEARER_PREFIX} ${newToken}`;
 
@@ -99,9 +118,13 @@ axiosInstance.interceptors.response.use(
         // Thực hiện lại các request bị lỗi với token mới
         processQueue(null, newToken);
         return axiosInstance(originalRequest);
-      } catch (refreshError) {
+      } catch (refreshError : any) {
         processQueue(refreshError, null);
-        localStorage.removeItem(ACCESS_TOKEN_KEY);
+        // Chỉ clearAuth nếu là lỗi thực sự (409 cũng clear)
+        if (refreshError.response?.status === 409) {
+          console.log('Refresh token missing, clearing auth');
+        }
+        dispatchClearAuth();
         if (typeof window !== 'undefined') {
           window.location.href = '/login';
         }

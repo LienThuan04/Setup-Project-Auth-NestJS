@@ -14,28 +14,32 @@ import Link from "next/link"
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ensureDeviceId } from "@/lib/cookie";
-import { authAPI } from "@/lib/axios/api";
 import { toast } from "sonner";
 import { handleApiError } from "@/lib/handle-error";
+import { useAppDispatch, useAppSelector } from "@/redux/hooks";
+import { loginUser } from "@/redux/features/auth/authSlice";
+import { authAPI } from "@/lib/axios/api";
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"form">) {
-  const tokenKey = process.env.NEXT_PUBLIC_ACCESS_TOKEN_KEY;
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const dispatch = useAppDispatch();
+  const { isLoading } = useAppSelector(state => state.auth);
+
+  const handleGoogleLogin = async () => {
+    ensureDeviceId();
+    authAPI.googleLogin();
+      // Sau khi gọi API, backend sẽ trả về URL để redirect, hoặc frontend có thể tự xây dựng URL dựa trên config
+      // Ở đây giả sử backend đã xử lý redirect nên không cần làm gì thêm
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
 
-    // 1. Đảm bảo cookie deviceId tồn tại và gia hạn
-    const deviceId = ensureDeviceId();
-    console.log('Device ID for login:', deviceId);
-
-    // 2. Thu thập thông tin đăng nhập từ form
-    console.log('Device ID for login:', deviceId);
     const formData = new FormData(e.currentTarget);
     const data = {
       userNameOrEmail: formData.get("email") as string,
@@ -43,20 +47,12 @@ export function LoginForm({
     };
 
     try {
-      const res = await authAPI.login(data);
-      const accessToken = res.data?.data?.accessToken;
-      if (!accessToken) {
-        toast.error('No access token returned from login' + JSON.stringify(res.data));
-        return;
+      const res = await dispatch(loginUser(data)); // unwrap để lấy payload hoặc lỗi từ thunk
+      if (loginUser.fulfilled.match(res)) {
+        router.push('/dashboard'); // Redirect to home page or dashboard after login
+      } else {
+        toast.error(res.payload as string || 'Login failed');
       }
-      if (!tokenKey) {
-        toast.error('Token key is not defined in environment variables');
-        return;
-      }
-      localStorage.setItem(tokenKey, accessToken);
-      toast.success(res.data?.message || 'Login successful!');
-      router.push('/dashboard'); // Redirect to home page or dashboard after login
-
     } catch (error) {
       console.error('Login error:', error);
       handleApiError(error);
@@ -108,7 +104,7 @@ export function LoginForm({
         </Field>
         <FieldSeparator>Or continue with</FieldSeparator>
         <Field>
-          <Button variant="outline" type="button">
+          <Button variant="outline" type="button" disabled={loading} onClick={handleGoogleLogin}>
             <img
               src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/google/default.svg"
               alt="Google"

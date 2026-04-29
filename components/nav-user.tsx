@@ -20,6 +20,9 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { usersAPI } from "@/lib/axios/api"
+import { logout } from "@/redux/features/auth/authSlice"
+import { useAppDispatch } from "@/redux/hooks"
 import { ChevronsUpDownIcon, SparklesIcon, BadgeCheckIcon, CreditCardIcon, BellIcon, LogOutIcon } from "lucide-react"
 
 export function NavUser({
@@ -32,6 +35,11 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const dispatch = useAppDispatch();
+  const handleTest =async () => {
+    const res = await usersAPI.getAll();
+    console.log(res);
+  };
 
   return (
     <SidebarMenu>
@@ -73,7 +81,7 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={ handleTest }>
                 <SparklesIcon
                 />
                 Upgrade to Pro
@@ -98,7 +106,9 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => {
+              dispatch(logout());
+              }}>
               <LogOutIcon
               />
               Log out

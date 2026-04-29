@@ -1,11 +1,19 @@
 import { configureStore } from '@reduxjs/toolkit';
-import counterReducer from '@/redux/features/counter/counterSlice';
+import { authReducer } from '@/redux/features/auth/authSlice';
+import { injectStore } from '@/lib/axios/axios';
 
 export const store = configureStore({
   reducer: {
-    counter: counterReducer,
+    auth: authReducer,
+    // counter: counterReducer,
   },
 });
+
+injectStore(
+  () => store.getState().auth.accessToken,
+  (data) => store.dispatch({ type: 'auth/setAccessTokenAndUser', payload: data }),
+  () => store.dispatch({ type: 'auth/clearAuth' })
+);
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;

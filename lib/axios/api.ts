@@ -2,104 +2,104 @@ import axiosInstance from '@/lib/axios/axios';
 
 // ==================== AUTH APIs ====================
 export const authAPI = {
-  // Register (bước 1 - gửi OTP)
-  register: (data: { userName: string; email: string; password: string }) =>
-    axiosInstance.post('/auth/register', data),
+    // Register (bước 1 - gửi OTP)
+    register: (data: { userName: string; email: string; password: string }) =>
+        axiosInstance.post('/auth/register', data),
 
-  // Verify OTP sau register (bước 2)
-  verifyRegisterOtp: (data: { email: string; otp: string }) =>
-    axiosInstance.post('/auth/verify-register-otp', data),
+    // Verify OTP sau register (bước 2)
+    verifyRegisterOtp: (data: { email: string; otp: string }) =>
+        axiosInstance.post('/auth/verify-register-otp', data),
 
-  // Resend OTP sau register
-  resendRegisterOtp: (data: { email: string }) =>
-    axiosInstance.post('/auth/resend-register-otp', data),
+    // Resend OTP sau register
+    resendRegisterOtp: (data: { email: string }) =>
+        axiosInstance.post('/auth/resend-register-otp', data),
 
-  // Login (dùng userName hoặc email)
-  login: (data: { userNameOrEmail: string; password: string }) =>
-    axiosInstance.post('/auth/login', data),
+    // Login (dùng userName hoặc email)
+    login: (data: { userNameOrEmail: string; password: string }) =>
+        axiosInstance.post('/auth/login', data),
 
-  // Refresh token
-  refreshToken: () =>
-    axiosInstance.post('/auth/refresh'),
+    // Refresh token
+    refreshToken: () =>
+        axiosInstance.post('/auth/refresh'),
 
-  // Get profile user hiện tại
-  getProfile: () =>
-    axiosInstance.get('/auth/profile'),
+    // Get profile user hiện tại
+    getProfile: () =>
+        axiosInstance.get('/auth/profile'),
 
-  // Logout
-  logout: () =>
-    axiosInstance.post('/auth/logout'),
+    // Logout
+    logout: () =>
+        axiosInstance.post('/auth/logout'),
 
-  // Logout tất cả thiết bị
-  logoutAll: () =>
-    axiosInstance.post('/auth/logout-all'),
+    // Logout tất cả thiết bị
+    logoutAll: () =>
+        axiosInstance.post('/auth/logout-all'),
 
-  // Google Login (redirect)
-  googleLogin: () =>
-    axiosInstance.get('/auth/google'),
+    // Google Login (redirect)
+    googleLogin: () => {
+        window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
+    },
 
-  // Google Callback
-  googleCallback: () =>
-    axiosInstance.get('/auth/google/callback'),
+    // Google Callback
+
 };
 
 // ==================== USERS APIs ====================
 export const usersAPI = {
-  // Lấy tất cả users
-  getAll: () => axiosInstance.get('/users'),
+    // Lấy tất cả users
+    getAll: () => axiosInstance.get('/users'),
 
-  // Tạo user mới
-  create: (data: {
-    email: string;
-    password: string;
-    userName: string;
-    roleName: string;
-  }) => axiosInstance.post('/users', data),
+    // Tạo user mới
+    create: (data: {
+        email: string;
+        password: string;
+        userName: string;
+        roleName: string;
+    }) => axiosInstance.post('/users', data),
 
-  // Lấy user theo ID
-  getById: (id: string) =>
-    axiosInstance.get(`/users/${id}`),
+    // Lấy user theo ID
+    getById: (id: string) =>
+        axiosInstance.get(`/users/${id}`),
 
-  // Cập nhật user
-  update: (id: string, data: {
-    email?: string;
-    userName?: string;
-    description?: string;
-  }) => axiosInstance.patch(`/users/${id}`, data),
+    // Cập nhật user
+    update: (id: string, data: {
+        email?: string;
+        userName?: string;
+        description?: string;
+    }) => axiosInstance.patch(`/users/${id}`, data),
 
-  // Xóa user
-  delete: (id: string) =>
-    axiosInstance.delete(`/users/${id}`),
+    // Xóa user
+    delete: (id: string) =>
+        axiosInstance.delete(`/users/${id}`),
 
-  // Upload avatar hoặc background
-  uploadAvatarOrBg: (id: string, data: FormData) =>
-    axiosInstance.patch(`/users/avatarorbg/${id}`, data, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    }),
+    // Upload avatar hoặc background
+    uploadAvatarOrBg: (id: string, data: FormData) =>
+        axiosInstance.patch(`/users/avatarorbg/${id}`, data, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        }),
 };
 
 // ==================== ROLE APIs ====================
 export const rolesAPI = {
-  // Lấy tất cả roles
-  getAll: () =>
-    axiosInstance.get('/role'),
+    // Lấy tất cả roles
+    getAll: () =>
+        axiosInstance.get('/role'),
 
-  // Tạo role mới
-  create: (data: { roleName: string; description: string }) =>
-    axiosInstance.post('/role', data),
+    // Tạo role mới
+    create: (data: { roleName: string; description: string }) =>
+        axiosInstance.post('/role', data),
 
-  // Lấy role theo ID
-  getById: (id: string) =>
-    axiosInstance.get(`/role/${id}`),
+    // Lấy role theo ID
+    getById: (id: string) =>
+        axiosInstance.get(`/role/${id}`),
 
-  // Cập nhật role
-  update: (id: string, data: { roleName?: string; description?: string }) =>
-    axiosInstance.patch(`/role/${id}`, data),
+    // Cập nhật role
+    update: (id: string, data: { roleName?: string; description?: string }) =>
+        axiosInstance.patch(`/role/${id}`, data),
 
-  // Xóa role
-  delete: (id: string) =>
-    axiosInstance.delete(`/role/${id}`),
+    // Xóa role
+    delete: (id: string) =>
+        axiosInstance.delete(`/role/${id}`),
 };
 
