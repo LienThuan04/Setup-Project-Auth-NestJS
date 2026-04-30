@@ -16,6 +16,7 @@ import { useState } from "react"
 import { toast } from "sonner"
 import { authAPI } from "@/lib/axios/api"
 import { handleApiError } from "@/lib/handle-error"
+import { ensureDeviceId } from "@/lib/cookie"
 
 export function SignupForm({
   className,
@@ -24,6 +25,13 @@ export function SignupForm({
 
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+
+  const handleGoogleLogin = async () => {
+      ensureDeviceId();
+      authAPI.googleLogin();
+        // Sau khi gọi API, backend sẽ trả về URL để redirect, hoặc frontend có thể tự xây dựng URL dựa trên config
+        // Ở đây giả sử backend đã xử lý redirect nên không cần làm gì thêm
+    };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -138,7 +146,7 @@ export function SignupForm({
         </Field>
         <FieldSeparator>Or continue with</FieldSeparator>
         <Field>
-          <Button variant="outline" type="button">
+          <Button variant="outline" type="button" disabled={loading} onClick={handleGoogleLogin}>
             <img
               src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/google/default.svg"
               alt="Google"

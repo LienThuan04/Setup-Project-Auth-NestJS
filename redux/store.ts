@@ -1,11 +1,12 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { authReducer } from '@/redux/features/auth/authSlice';
 import { injectStore } from '@/lib/axios/axios';
+import counterReducer from '@/redux/features/counter/counterSlice';
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
-    // counter: counterReducer,
+    counter: counterReducer,
   },
 });
 

@@ -1,5 +1,5 @@
 import { LoadingSpinner } from "@/components/loading-spinner";
-import { VerifyOtpForm } from "@/components/verify-otp-form";
+import { VerifyOtpForm } from "@/components/auth/verify-otp-form";
 import { Suspense } from "react";
 
 export default function VerifyOtpPage() {

@@ -10,6 +10,7 @@ interface AuthState {
     isAuthenticated: boolean;
     isLoading: boolean;
     error: string | null;
+    isInitialized: boolean; // Đã check token lần đầu chưa
 }
 
 const initialState: AuthState = {
@@ -18,6 +19,7 @@ const initialState: AuthState = {
     isAuthenticated: false,
     isLoading: false,
     error: null,
+    isInitialized: false, // Mặc định chưa check token, sẽ được set true sau khi refreshToken hoặc getProfile hoàn thành (dù thành công hay thất bại)
 };
 
 // Login thunk
@@ -43,7 +45,8 @@ export const refreshToken = createAsyncThunk(
             const response = await authAPI.refreshToken();
             return response.data?.data; // { accessToken, user }
         } catch (error: any) {
-            toast.error('Session expired. Please log in again.');
+            // Không show toast ở lần đầu refresh, chỉ show khi user đang dùng
+            console.log('No valid session:', error.response?.data?.message);
             return rejectWithValue('Session expired');
         }
     }
@@ -86,9 +89,9 @@ const authSlice = createSlice({
         setAccessTokenAndUser: (state, action) => {
             state.accessToken = action.payload.accessToken;
             if (action.payload.user) {
-            state.user = action.payload.user;
+                state.user = action.payload.user;
             }
-        }
+        },
     },
     extraReducers: (builder) => {
         builder
@@ -119,6 +122,7 @@ const authSlice = createSlice({
                 state.accessToken = action.payload.accessToken;
                 state.user = action.payload.user;
                 state.isAuthenticated = true;
+                state.isInitialized = true;
             })
             .addCase(refreshToken.rejected, (state, action) => {
                 state.isLoading = false;
@@ -126,6 +130,7 @@ const authSlice = createSlice({
                 state.user = null;
                 state.isAuthenticated = false;
                 state.error = action.payload as string;
+                state.isInitialized = true;
             })
 
             // Get profile

@@ -23,22 +23,21 @@ import {
 import { usersAPI } from "@/lib/axios/api"
 import { logout } from "@/redux/features/auth/authSlice"
 import { useAppDispatch } from "@/redux/hooks"
+import { User } from "@/redux/types"
 import { ChevronsUpDownIcon, SparklesIcon, BadgeCheckIcon, CreditCardIcon, BellIcon, LogOutIcon } from "lucide-react"
 
 export function NavUser({
   user,
 }: {
-  user: {
-    name: string
-    email: string
-    avatar: string
-  }
+  user: User
 }) {
   const { isMobile } = useSidebar()
   const dispatch = useAppDispatch();
-  const handleTest =async () => {
-    const res = await usersAPI.getAll();
-    console.log(res);
+
+
+  const handleTest = async () => {
+    // const res = await usersAPI.getAll();
+    // console.log(res);
   };
 
   return (
@@ -51,11 +50,11 @@ export function NavUser({
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarImage src={user.avatar} alt={user.name} />
+                <AvatarImage src={user.avatarUrl as string} alt={user.userName} />
                 <AvatarFallback className="rounded-lg">CN</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
+                <span className="truncate font-medium">{user.userName.replace(/_\d+$/, '')}</span>
                 <span className="truncate text-xs">{user.email}</span>
               </div>
               <ChevronsUpDownIcon className="ml-auto size-4" />
@@ -70,11 +69,11 @@ export function NavUser({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarImage src={user.avatarUrl as string} alt={user.userName} />
                   <AvatarFallback className="rounded-lg">CN</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
+                  <span className="truncate font-medium">{user.userName.replace(/_\d+$/, '')}</span>
                   <span className="truncate text-xs">{user.email}</span>
                 </div>
               </div>
@@ -108,7 +107,8 @@ export function NavUser({
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => {
               dispatch(logout());
-              }}>
+              }}
+              className="cursor-pointer text-red-500 hover:bg-red-50 focus:bg-red-50 data-[state=open]:bg-red-50">
               <LogOutIcon
               />
               Log out

@@ -36,7 +36,7 @@ export default function GoogleCallbackPage() {
         return;
       }
 
-      // Lưu token và user vào redux store      // Cách này đảm bảo cả token và user được cập nhật đồng thời, tránh lỗi không đồng bộ
+      // Lưu token và user vào redux store Cách này đảm bảo cả token và user được cập nhật đồng thời, tránh lỗi không đồng bộ
       store.dispatch(setAccessTokenAndUser({ accessToken, user }));
 
 

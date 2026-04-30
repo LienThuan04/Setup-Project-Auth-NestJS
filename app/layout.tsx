@@ -4,7 +4,7 @@ import "@/app/globals.css";
 import { Toaster } from "sonner";
 import ReduxProvider from "@/redux/ReduxProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import AuthInitializer from "./(auth)/AuthInitializer";
+import AuthInitializer from "@/components/auth/AuthInitializer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
