@@ -72,9 +72,6 @@ export const logout = createAsyncThunk(
         try {
             await authAPI.logout();
             toast.success('Logged out successfully!');
-            if (typeof window !== 'undefined') {
-                window.location.href = ROUTES.LOGIN;
-            }
         } catch (error: any) {
             toast.error('Logout failed.');
             return rejectWithValue('Logout failed');
@@ -87,8 +84,16 @@ export const logout = createAsyncThunk(
 const authSlice = createSlice({
     name: 'auth',
     initialState,
+    // Reducers thuần để clear auth hoặc set token/user trực tiếp (dùng trong refresh token)
     reducers: {
-        clearAuth: () => initialState,
+        clearAuth: (state) => {
+            state.accessToken = null;
+            state.user = null;
+            state.isAuthenticated = false;
+            state.isLoading = false;
+            state.error = null;
+            state.isInitialized = true;
+        },
         setAccessTokenAndUser: (state, action) => {
             state.accessToken = action.payload.accessToken;
             if (action.payload.user) {
@@ -96,6 +101,7 @@ const authSlice = createSlice({
             }
         },
     },
+    // Xử lý các async thunk
     extraReducers: (builder) => {
         builder
 
@@ -158,7 +164,14 @@ const authSlice = createSlice({
                 state.isLoading = true;
                 state.error = null;
             })
-            .addCase(logout.fulfilled, () => initialState)
+            .addCase(logout.fulfilled, (state) => {
+                state.accessToken = null;
+                state.user = null;
+                state.isAuthenticated = false;
+                state.isLoading = false;
+                state.error = null;
+                state.isInitialized = true;
+            })
             .addCase(logout.rejected, (state, action) => {
                 state.isLoading = false;
                 state.error = action.payload as string;

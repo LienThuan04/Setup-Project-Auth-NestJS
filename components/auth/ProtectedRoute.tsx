@@ -4,8 +4,8 @@ import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAppSelector } from '@/redux/hooks';
 import { AUTH_FRONTEND_PATHS } from '@/lib/axios/auth-paths';
-import { LoadingSpinner } from '@/components/loading-spinner';
 import { ROUTES } from '@/lib/routes';
+import { LoadingSkeleton } from '@/components/loading-spinner';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -22,7 +22,7 @@ interface ProtectedRouteProps {
 export default function ProtectedRoute({ 
   children, 
   roles, 
-  redirectTo = '/login' 
+  redirectTo = ROUTES.LOGIN
 }: ProtectedRouteProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -43,7 +43,7 @@ export default function ProtectedRoute({
 
     // 2. Đã đăng nhập + đang ở trang auth → redirect dashboard
     if (isAuthenticated && isAuthPage) {
-      router.replace(ROUTES.DASHBOARD);
+      router.replace(ROUTES.DASHBOARD.ROOT);
       return;
     }
 
@@ -60,7 +60,7 @@ export default function ProtectedRoute({
   if (!isInitialized) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <LoadingSpinner size="lg" text="Checking authentication..." />
+        <LoadingSkeleton variant="spinner" size="lg" text="Checking authentication..." />
       </div>
     );
   }

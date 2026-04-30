@@ -50,8 +50,8 @@ export function SignupForm({
       setLoading(false)
       return
     }
-    if (data.password.length < 8) {
-      toast.warning("Password must be at least 8 characters long")
+    if (data.password.length < 6) {
+      toast.warning("Password must be at least 6 characters long")
       setLoading(false)
       return
     }

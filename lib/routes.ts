@@ -7,6 +7,11 @@ export const ROUTES = {
   LOGIN: '/login',
   SIGNUP: '/signup',
   VERIFY_OTP: '/verify-otp',
-  DASHBOARD: '/dashboard',
+  DASHBOARD: {
+    ROOT: '/dashboard',
+    USER_MANAGEMENT: '/dashboard/users',
+    ROLE_MANAGEMENT: '/dashboard/roles',
+    SETTINGS: '/dashboard/settings',
+  },
   UNAUTHORIZED: '/unauthorized',
 } as const;

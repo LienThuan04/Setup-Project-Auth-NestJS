@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import ReduxProvider from "@/redux/ReduxProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import AuthInitializer from "@/components/auth/AuthInitializer";
+import { ThemeInitializer } from "@/components/theme-initializer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,9 +35,11 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ReduxProvider>
           <TooltipProvider>
-            <AuthInitializer>
-            {children}
-            </AuthInitializer>
+            <ThemeInitializer>
+              <AuthInitializer>
+                {children}
+              </AuthInitializer>
+            </ThemeInitializer>
             <Toaster richColors position="top-center" />
           </TooltipProvider>
         </ReduxProvider>

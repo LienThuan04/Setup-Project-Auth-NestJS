@@ -16,12 +16,13 @@ import {
 import { GalleryVerticalEndIcon, AudioLinesIcon, TerminalIcon, TerminalSquareIcon, BotIcon, BookOpenIcon, Settings2Icon, FrameIcon, PieChartIcon, MapIcon } from "lucide-react"
 import { store } from "@/redux/store"
 import { User } from "@/redux/types"
+import { ROUTES } from "@/lib/routes"
 
 // This is sample data.
 const data = {
   teams: [
     {
-      name: "Acme Inc",
+      name: "Lian Harman",
       logo: (
         <GalleryVerticalEndIcon
         />
@@ -47,7 +48,7 @@ const data = {
   ],
   navMain: [
     {
-      title: "Playground",
+      title: "Management",
       url: "#",
       icon: (
         <TerminalSquareIcon
@@ -56,16 +57,16 @@ const data = {
       isActive: true,
       items: [
         {
-          title: "History",
-          url: "#",
+          title: "Account Management",
+          url: ROUTES.DASHBOARD.USER_MANAGEMENT,
         },
         {
-          title: "Starred",
-          url: "#",
+          title: "Roles Management",
+          url: ROUTES.DASHBOARD.ROLE_MANAGEMENT,
         },
         {
-          title: "Settings",
-          url: "#",
+          title: "Pending Registrations Management",
+          url: "/pending-registrations",
         },
       ],
     },

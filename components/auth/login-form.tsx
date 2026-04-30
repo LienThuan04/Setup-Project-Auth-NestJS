@@ -45,7 +45,7 @@ export function LoginForm({
     try {
       const res = await dispatch(loginUser(data));
       if (loginUser.fulfilled.match(res)) {
-        router.push(ROUTES.DASHBOARD);
+        router.push(ROUTES.DASHBOARD.ROOT);
       } else {
         toast.error(res.payload as string || 'Login failed');
       }
