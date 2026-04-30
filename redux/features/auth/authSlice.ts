@@ -3,6 +3,7 @@ import { authAPI } from '@/lib/axios/api';
 import { ensureDeviceId } from '@/lib/cookie';
 import { User } from '@/redux/types';
 import { toast } from 'sonner';
+import { ROUTES } from '@/lib/routes';
 
 interface AuthState {
     accessToken: string | null;
@@ -71,7 +72,9 @@ export const logout = createAsyncThunk(
         try {
             await authAPI.logout();
             toast.success('Logged out successfully!');
-            window.location.href = '/login'; // Redirect to login page after logout
+            if (typeof window !== 'undefined') {
+                window.location.href = ROUTES.LOGIN;
+            }
         } catch (error: any) {
             toast.error('Logout failed.');
             return rejectWithValue('Logout failed');
@@ -142,10 +145,12 @@ const authSlice = createSlice({
                 state.isLoading = false;
                 state.user = action.payload.user;
                 state.isAuthenticated = true;
+                state.isInitialized = true; // Đảm bảo isInitialized = true dù getProfile chạy trước refreshToken
             })
             .addCase(getProfile.rejected, (state, action) => {
                 state.isLoading = false;
                 state.error = action.payload as string;
+                state.isInitialized = true; // Tránh app bị loading mãi mãi
             })
 
             // Logout

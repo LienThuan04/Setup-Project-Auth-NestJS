@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Project Gradution",
-  description: "GGraduation project with NestJS and Next.js",
+  title: "Project Graduation",
+  description: "Graduation project with NestJS and Next.js",
 };
 
 export default function RootLayout({
@@ -28,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en" suppressContentEditableWarning
+      lang="en" suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">

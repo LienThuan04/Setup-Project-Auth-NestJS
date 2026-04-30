@@ -18,14 +18,17 @@ import {
 } from '@/components/ui/input-otp';
 import { toast } from 'sonner';
 import { handleApiError } from '@/lib/handle-error';
-import { authAPI } from '@/lib/axios/api'; // kích hoạt khi kết nối backend
+import { authAPI } from '@/lib/axios/api';
+import Link from 'next/link';
+
+// Đọc env vars ở module-level, tránh đọc lại mỗi lần render
+const OTP_EXPIRE = process.env.NEXT_PUBLIC_OTP_EXPIRE;
+const OTP_RESEND_COOLDOWN = parseInt(process.env.NEXT_PUBLIC_OTP_RESEND_COOLDOWN ?? '60', 10);
 
 export function VerifyOtpForm({
   className,
   ...props
 }: React.ComponentProps<'form'>) {
-  const OTP_EXPIRE = process.env.NEXT_PUBLIC_OTP_EXPIRE;
-  const OTP_RESEND_COOLDOWN = parseInt(process.env.NEXT_PUBLIC_OTP_RESEND_COOLDOWN! || '60', 10); // mặc định 60 giây
   const router = useRouter();
   // Lấy email từ query param để biết đang xác thực cho email nào (nếu có)
   const searchParams = useSearchParams();
@@ -52,6 +55,10 @@ export function VerifyOtpForm({
   const handleComplete = async (value: string) => {
     const code = value;
     if (code.length !== 6) return;
+    if (!email) {
+      toast.error('Email is missing. Please sign up again.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -142,9 +149,9 @@ export function VerifyOtpForm({
           </Button>
           <FieldDescription className="px-6 text-center">
             Go back to{' '}
-            <a href="/signup" className="underline underline-offset-4">
+            <Link href="/signup" className="underline underline-offset-4">
               Sign Up
-            </a>
+            </Link>
           </FieldDescription>
         </Field>
       </FieldGroup>

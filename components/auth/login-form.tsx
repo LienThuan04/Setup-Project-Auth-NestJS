@@ -12,33 +12,29 @@ import {
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { ensureDeviceId } from "@/lib/cookie";
 import { toast } from "sonner";
 import { handleApiError } from "@/lib/handle-error";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { loginUser } from "@/redux/features/auth/authSlice";
 import { authAPI } from "@/lib/axios/api";
+import { ensureDeviceId } from "@/lib/cookie";
+import { ROUTES } from "@/lib/routes";
 
 export function LoginForm({
   className,
   ...props
 }: React.ComponentProps<"form">) {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
   const dispatch = useAppDispatch();
   const { isLoading } = useAppSelector(state => state.auth);
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleLogin = () => {
     ensureDeviceId();
     authAPI.googleLogin();
-      // Sau khi gọi API, backend sẽ trả về URL để redirect, hoặc frontend có thể tự xây dựng URL dựa trên config
-      // Ở đây giả sử backend đã xử lý redirect nên không cần làm gì thêm
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoading(true);
 
     const formData = new FormData(e.currentTarget);
     const data = {
@@ -47,17 +43,15 @@ export function LoginForm({
     };
 
     try {
-      const res = await dispatch(loginUser(data)); // unwrap để lấy payload hoặc lỗi từ thunk
+      const res = await dispatch(loginUser(data));
       if (loginUser.fulfilled.match(res)) {
-        router.push('/dashboard'); // Redirect to home page or dashboard after login
+        router.push(ROUTES.DASHBOARD);
       } else {
         toast.error(res.payload as string || 'Login failed');
       }
     } catch (error) {
       console.error('Login error:', error);
       handleApiError(error);
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -100,11 +94,11 @@ export function LoginForm({
           />
         </Field>
         <Field>
-          <Button type="submit">Login</Button>
+          <Button type="submit" disabled={isLoading}>Login</Button>
         </Field>
         <FieldSeparator>Or continue with</FieldSeparator>
         <Field>
-          <Button variant="outline" type="button" disabled={loading} onClick={handleGoogleLogin}>
+          <Button variant="outline" type="button" disabled={isLoading} onClick={handleGoogleLogin}>
             <img
               src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/google/default.svg"
               alt="Google"

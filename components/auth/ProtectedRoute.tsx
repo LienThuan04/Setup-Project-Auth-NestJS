@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAppSelector } from '@/redux/hooks';
 import { AUTH_FRONTEND_PATHS } from '@/lib/axios/auth-paths';
 import { LoadingSpinner } from '@/components/loading-spinner';
+import { ROUTES } from '@/lib/routes';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -27,11 +28,12 @@ export default function ProtectedRoute({
   const pathname = usePathname();
   const { isAuthenticated, isInitialized, user } = useAppSelector(state => state.auth);
 
+  // Tính toán 1 lần, dùng cho cả useEffect và render
+  const isAuthPage = AUTH_FRONTEND_PATHS.some(path => pathname.startsWith(path));
+
   useEffect(() => {
     // Chưa check token xong → không làm gì
     if (!isInitialized) return;
-
-    const isAuthPage = AUTH_FRONTEND_PATHS.some(path => pathname.startsWith(path));
 
     // 1. Chưa đăng nhập + không ở trang auth → redirect login
     if (!isAuthenticated && !isAuthPage) {
@@ -41,18 +43,18 @@ export default function ProtectedRoute({
 
     // 2. Đã đăng nhập + đang ở trang auth → redirect dashboard
     if (isAuthenticated && isAuthPage) {
-      router.replace('/dashboard');
+      router.replace(ROUTES.DASHBOARD);
       return;
     }
 
     // 3. Kiểm tra role (nếu có yêu cầu)
     if (isAuthenticated && roles && user) {
       if (!roles.includes(user.roleName)) {
-        router.replace('/unauthorized');
+        router.replace(ROUTES.UNAUTHORIZED);
         return;
       }
     }
-  }, [isInitialized, isAuthenticated, pathname, router, roles, user, redirectTo]);
+  }, [isInitialized, isAuthenticated, isAuthPage, pathname, router, roles, user, redirectTo]);
 
   // Chưa check token xong → hiển thị loading
   if (!isInitialized) {
@@ -64,7 +66,7 @@ export default function ProtectedRoute({
   }
 
   // Chưa authenticated + không ở auth page → không render
-  if (!isAuthenticated && !AUTH_FRONTEND_PATHS.some(path => pathname.startsWith(path))) {
+  if (!isAuthenticated && !isAuthPage) {
     return null;
   }
 

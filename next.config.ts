@@ -1,7 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  images: {
+    remotePatterns: [
+      // CDN cho icon Google trong login/signup form
+      { protocol: 'https', hostname: 'cdn.jsdelivr.net' },
+      // Thêm hostname của backend/CDN avatar tại đây
+    ],
+  },
 };
 
 export default nextConfig;

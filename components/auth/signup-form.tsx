@@ -17,6 +17,7 @@ import { toast } from "sonner"
 import { authAPI } from "@/lib/axios/api"
 import { handleApiError } from "@/lib/handle-error"
 import { ensureDeviceId } from "@/lib/cookie"
+import { ROUTES } from "@/lib/routes"
 
 export function SignupForm({
   className,
@@ -49,8 +50,8 @@ export function SignupForm({
       setLoading(false)
       return
     }
-    if (data.password.length < 6) {
-      toast.warning("Password must be at least 6 characters long")
+    if (data.password.length < 8) {
+      toast.warning("Password must be at least 8 characters long")
       setLoading(false)
       return
     }
@@ -62,9 +63,8 @@ export function SignupForm({
         password: data.password,
         userName: data.userName
       })
-      console.log(res)
       toast.success("Account created successfully!")
-      router.push(`/verify-otp?email=${encodeURIComponent(data.email)}`);
+      router.push(`${ROUTES.VERIFY_OTP}?email=${encodeURIComponent(data.email)}`);
     } catch (error: any) {
       handleApiError(error)
     } finally {
