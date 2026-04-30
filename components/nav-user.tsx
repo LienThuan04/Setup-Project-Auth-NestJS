@@ -23,13 +23,13 @@ import {
 import { usersAPI } from "@/lib/axios/api"
 import { logout } from "@/redux/features/auth/authSlice"
 import { useAppDispatch } from "@/redux/hooks"
-import { User } from "@/redux/types"
 import { ChevronsUpDownIcon, SparklesIcon, BadgeCheckIcon, CreditCardIcon, BellIcon, LogOutIcon } from "lucide-react"
+import { IUser } from "@/components/ManagerUsers/user-schema"
 
 export function NavUser({
   user,
 }: {
-  user: User
+  user: IUser;
 }) {
   const { isMobile } = useSidebar()
   const dispatch = useAppDispatch();
@@ -108,7 +108,7 @@ export function NavUser({
             <DropdownMenuItem onClick={() => {
               dispatch(logout());
               }}
-              className="cursor-pointer text-red-500 hover:bg-red-50 focus:bg-red-50 data-[state=open]:bg-red-50">
+              className="cursor-pointer text-red-500">
               <LogOutIcon
               />
               Log out

@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { refreshToken } from '@/redux/features/auth/authSlice';
-import { LoadingSkeleton } from '@/components/loading-spinner';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { AUTH_FRONTEND_PATHS } from '@/lib/axios/auth-paths';
 
 /**

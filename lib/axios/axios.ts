@@ -1,8 +1,8 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { ensureDeviceId } from '@/lib/cookie';
 import { shouldRefreshToken } from '@/lib/axios/refresh-exclude';
-import { User } from '@/redux/types';
-import { authAPI } from './api';
+import { authAPI } from '@/lib/axios/api';
+import { IUser } from '@/components/ManagerUsers/user-schema';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 const ACCESS_TOKEN_KEY = process.env.NEXT_PUBLIC_ACCESS_TOKEN_KEY;
@@ -10,13 +10,13 @@ const AUTHORIZATION_HEADER = process.env.NEXT_PUBLIC_AUTHORIZATION_HEADER || 'Au
 const BEARER_PREFIX = process.env.NEXT_PUBLIC_BEARER_PREFIX || 'Bearer';
 
 let getAccessToken: () => string | null = () => null;
-let dispatchSetAuth: (data: { accessToken: string; user: User | null }) => void = () => { };
+let dispatchSetAuth: (data: { accessToken: string; user: IUser | null }) => void = () => { };
 let dispatchClearAuth: () => void = () => { };
 
 // Hàm để inject store vào module axios, cho phép axios có thể truy cập token và dispatch action để cập nhật auth state
 export const injectStore = (
   _getAccessToken: () => string | null,
-  _setAuth: (data: { accessToken: string; user: User | null }) => void,
+  _setAuth: (data: { accessToken: string; user: IUser | null }) => void,
   _clearAuth: () => void
 ) => {
   getAccessToken = _getAccessToken;

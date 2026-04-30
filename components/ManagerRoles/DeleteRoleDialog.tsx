@@ -5,29 +5,29 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import type { User } from './useUsers';
+import { IRole } from '@/components/ManagerRoles/role-schema';
 
-interface DeleteUserDialogProps {
+interface DeleteRoleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  user: User | null;
+  role: IRole | null;
   onConfirm: () => void;
 }
 
-export function DeleteUserDialog({
+export function DeleteRoleDialog({
   open,
   onOpenChange,
-  user,
+  role,
   onConfirm,
-}: DeleteUserDialogProps) {
+}: DeleteRoleDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete User</DialogTitle>
+          <DialogTitle>Delete Role</DialogTitle>
         </DialogHeader>
         <p>
-          Are you sure you want to delete <strong>{user?.userName}</strong>?
+          Are you sure you want to delete <strong>{role?.roleName}</strong>?
         </p>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>

@@ -6,6 +6,8 @@ interface LoadingSkeletonProps {
   className?: string;
   text?: string;
   lines?: number; // Cho variant 'text'
+  rows?: number; // 👈 Số hàng cho table
+  cols?: number; // 👈 Số cột cho table
 }
 
 export function LoadingSkeleton({ 
@@ -13,7 +15,9 @@ export function LoadingSkeleton({
   size = 'md', 
   className, 
   text,
-  lines = 3 
+  lines = 3,
+  rows = 5,
+  cols = 4
 }: LoadingSkeletonProps) {
   
   // 1. Spinner (giữ lại)
@@ -96,14 +100,14 @@ export function LoadingSkeleton({
       <div className={cn('space-y-2', className)}>
         {/* Header */}
         <div className="flex gap-4 animate-pulse">
-          {Array.from({ length: 4 }).map((_, i) => (
+          {Array.from({ length: cols }).map((_, i) => (
             <div key={i} className="h-8 bg-muted rounded flex-1" />
           ))}
         </div>
         {/* Rows */}
-        {Array.from({ length: 5 }).map((_, i) => (
+        {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="flex gap-4 animate-pulse">
-            {Array.from({ length: 4 }).map((_, j) => (
+            {Array.from({ length: cols }).map((_, j) => (
               <div key={j} className="h-6 bg-muted rounded flex-1" />
             ))}
           </div>

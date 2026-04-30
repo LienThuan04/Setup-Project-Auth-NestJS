@@ -13,10 +13,10 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar"
-import { GalleryVerticalEndIcon, AudioLinesIcon, TerminalIcon, TerminalSquareIcon, BotIcon, BookOpenIcon, Settings2Icon, FrameIcon, PieChartIcon, MapIcon } from "lucide-react"
+import { GalleryVerticalEndIcon, AudioLinesIcon, TerminalIcon, ShieldCogCorner, BotIcon, BookOpenIcon, Settings2Icon, FrameIcon, PieChartIcon, MapIcon } from "lucide-react"
 import { store } from "@/redux/store"
-import { User } from "@/redux/types"
 import { ROUTES } from "@/lib/routes"
+import { IUser } from "@/components/ManagerUsers/user-schema"
 
 // This is sample data.
 const data = {
@@ -51,7 +51,7 @@ const data = {
       title: "Management",
       url: "#",
       icon: (
-        <TerminalSquareIcon
+        <ShieldCogCorner
         />
       ),
       isActive: true,
@@ -174,7 +174,7 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const user = store.getState().auth.user as User ; // Lấy user từ redux store
+  const user = store.getState().auth.user as IUser ; // Lấy user từ redux store
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>

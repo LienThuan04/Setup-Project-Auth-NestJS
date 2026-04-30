@@ -6,19 +6,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import type { User, UserFormData } from './useUsers';
+import type { IUser } from '@/components/ManagerUsers/user-schema';
+import { UserFormData } from '@/components/ManagerUsers/user-schema';
 
 interface UserDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  user: User | null; // null = create, User = edit
+  user: IUser | null; // null = create, IUser = edit
   formData: UserFormData;
   onFormChange: (data: UserFormData) => void;
   onSubmit: () => void;
@@ -48,6 +42,7 @@ export function UserDialog({
               onChange={(e) => onFormChange({ ...formData, userName: e.target.value })}
               placeholder="johndoe"
             />
+            
           </div>
           <div>
             <label className="text-sm font-medium">Email</label>
@@ -57,6 +52,7 @@ export function UserDialog({
               type="email"
               placeholder="user@example.com"
             />
+            
           </div>
           {!isEdit && (
             <div>
@@ -67,23 +63,9 @@ export function UserDialog({
                 type="password"
                 placeholder="••••••"
               />
+              
             </div>
           )}
-          <div>
-            <label className="text-sm font-medium">Role</label>
-            <Select
-              value={formData.roleName}
-              onValueChange={(value) => onFormChange({ ...formData, roleName: value })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="USER">USER</SelectItem>
-                <SelectItem value="ADMIN">ADMIN</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           <Button className="w-full" onClick={onSubmit}>
             {isEdit ? 'Update' : 'Create'}
           </Button>

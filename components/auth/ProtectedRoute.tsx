@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAppSelector } from '@/redux/hooks';
 import { AUTH_FRONTEND_PATHS } from '@/lib/axios/auth-paths';
 import { ROUTES } from '@/lib/routes';
-import { LoadingSkeleton } from '@/components/loading-spinner';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;

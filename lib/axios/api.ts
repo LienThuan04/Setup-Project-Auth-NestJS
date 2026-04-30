@@ -67,6 +67,9 @@ export const usersAPI = {
         description?: string;
     }) => axiosInstance.patch(`/users/${id}`, data),
 
+    updateRole: (id: string, data: { roleNameOrId: string }) =>
+        axiosInstance.patch(`/users/role/${id}`, data),
+
     // Xóa user
     delete: (id: string) =>
         axiosInstance.delete(`/users/${id}`),

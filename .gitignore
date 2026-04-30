@@ -42,4 +42,4 @@ yarn-error.log*
 next-env.d.ts
 
 # .bat files
-git push all.bat
+git_push_all.bat

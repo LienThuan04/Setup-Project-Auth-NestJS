@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Roboto } from "next/font/google";
 import "@/app/globals.css";
 import { Toaster } from "sonner";
 import ReduxProvider from "@/redux/ReduxProvider";

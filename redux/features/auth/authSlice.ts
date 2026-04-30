@@ -1,13 +1,13 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { authAPI } from '@/lib/axios/api';
 import { ensureDeviceId } from '@/lib/cookie';
-import { User } from '@/redux/types';
 import { toast } from 'sonner';
 import { ROUTES } from '@/lib/routes';
+import { IUser } from '@/components/ManagerUsers/useUsers';
 
 interface AuthState {
     accessToken: string | null;
-    user: User | null;
+    user: IUser | null;
     isAuthenticated: boolean;
     isLoading: boolean;
     error: string | null;

@@ -11,21 +11,24 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Pencil, Trash2 } from 'lucide-react';
-import type { User } from './useUsers';
+import type { IUser } from '@/components/ManagerUsers/user-schema';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 
 interface UsersTableProps {
-  users: User[];
+  users: IUser[];
   loading: boolean;
-  onEdit: (user: User) => void;
-  onDelete: (user: User) => void;
+  onEdit: (user: IUser) => void;
+  onDelete: (user: IUser) => void;
+  onChangeRole: (user: IUser, newRole: string) => void;
 }
 
-export function UsersTable({ users, loading, onEdit, onDelete }: UsersTableProps) {
+export function UsersTable({ users, loading, onEdit, onDelete, onChangeRole }: UsersTableProps) {
   if (loading) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
-          Loading...
+          <LoadingSkeleton variant="table" rows={5} cols={6} text="Loading users..." />
         </CardContent>
       </Card>
     );
@@ -72,7 +75,18 @@ export function UsersTable({ users, loading, onEdit, onDelete }: UsersTableProps
                 </TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>
-                  <Badge variant="outline">{user.roleName || 'USER'}</Badge>
+                  <Select
+                    value={user.roleName || 'USER'}
+                    onValueChange={(value) => onChangeRole(user, value)}
+                  >
+                    <SelectTrigger className="h-8 w-[110px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USER">USER</SelectItem>
+                      <SelectItem value="ADMIN">ADMIN</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </TableCell>
                 <TableCell>
                   <Badge variant="secondary">{user.accountType || 'local'}</Badge>
