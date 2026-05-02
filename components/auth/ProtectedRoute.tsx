@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAppSelector } from '@/redux/hooks';
+import { useAppDispatch, useAppSelector } from '@/redux/hooks';
+import { refreshToken } from '@/redux/features/auth/authSlice';
 import { AUTH_FRONTEND_PATHS } from '@/lib/axios/auth-paths';
 import { ROUTES } from '@/lib/routes';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
@@ -13,51 +14,52 @@ interface ProtectedRouteProps {
   redirectTo?: string;
 }
 
-/**
- * ProtectedRoute - Chịu trách nhiệm:
- * 1. Chờ AuthInitializer check token xong (isInitialized = true)
- * 2. Redirect dựa trên authentication state
- * 3. Kiểm tra role nếu có
- */
 export default function ProtectedRoute({ 
   children, 
   roles, 
   redirectTo = ROUTES.LOGIN
 }: ProtectedRouteProps) {
+  const dispatch = useAppDispatch();
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, isInitialized, user } = useAppSelector(state => state.auth);
+  const { isAuthenticated, isInitialized, user, isLoading } = useAppSelector(state => state.auth);
+  const [localReady, setLocalReady] = useState(false);
 
-  // Tính toán 1 lần, dùng cho cả useEffect và render
+  // 👇 Tự gọi refreshToken khi mount (Back/Forward hoặc F5)
+  useEffect(() => {
+    if (!isInitialized) {
+      dispatch(refreshToken()).finally(() => setLocalReady(true));
+    } else {
+      setLocalReady(true);
+    }
+  }, [dispatch, isInitialized]);
+
   const isAuthPage = AUTH_FRONTEND_PATHS.some(path => pathname.startsWith(path));
 
+  // 👇 Redirect sau khi ready
   useEffect(() => {
-    // Chưa check token xong → không làm gì
-    if (!isInitialized) return;
+    if (!localReady || isLoading) return;
 
-    // 1. Chưa đăng nhập + không ở trang auth → redirect login
     if (!isAuthenticated && !isAuthPage) {
       router.replace(redirectTo);
       return;
     }
 
-    // 2. Đã đăng nhập + đang ở trang auth → redirect dashboard
     if (isAuthenticated && isAuthPage) {
       router.replace(ROUTES.DASHBOARD.ROOT);
       return;
     }
 
-    // 3. Kiểm tra role (nếu có yêu cầu)
     if (isAuthenticated && roles && user) {
       if (!roles.includes(user.roleName)) {
         router.replace(ROUTES.UNAUTHORIZED);
         return;
       }
     }
-  }, [isInitialized, isAuthenticated, isAuthPage, pathname, router, roles, user, redirectTo]);
+  }, [localReady, isLoading, isAuthenticated, isAuthPage, pathname, router, roles, user, redirectTo]);
 
-  // Chưa check token xong → hiển thị loading
-  if (!isInitialized) {
+  // 👇 Loading
+  if (!localReady || isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <LoadingSkeleton variant="spinner" size="lg" text="Checking authentication..." />
@@ -65,7 +67,6 @@ export default function ProtectedRoute({
     );
   }
 
-  // Chưa authenticated + không ở auth page → không render
   if (!isAuthenticated && !isAuthPage) {
     return null;
   }

@@ -39,7 +39,13 @@ export const authAPI = {
         window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
     },
 
-    // Google Callback
+    // Change password
+    // authAPI
+    changePasswordSendOtp: (data: { email: string }) =>
+        axiosInstance.post('/auth/change-password/send-otp', data),
+
+    changePasswordVerifyOtp: (data: { email: string; otp: string; newPassword: string }) =>
+        axiosInstance.post('/auth/change-password/verify-otp', data),
 
 };
 
