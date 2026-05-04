@@ -20,7 +20,7 @@ export const authAPI = {
 
     // Refresh token
     refreshToken: () =>
-        axiosInstance.post('/auth/refresh'),
+        axiosInstance.post('/auth/refresh',),
 
     // Get profile user hiện tại
     getProfile: () =>

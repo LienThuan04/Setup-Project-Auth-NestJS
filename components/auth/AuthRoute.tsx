@@ -1,6 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+/**
+ * AuthRoute — Bảo vệ các trang auth (login, signup, verify-otp).
+ *
+ * KIẾN TRÚC: AuthProvider đã khởi tạo auth xong.
+ *   - Nếu đã xác thực → chuyển hướng về dashboard
+ *   - Nếu chưa xác thực → hiển thị trang auth
+ */
+
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAppSelector } from '@/redux/hooks';
 import { ROUTES } from '@/lib/routes';
@@ -9,36 +17,31 @@ interface AuthRouteProps {
   children: React.ReactNode;
 }
 
-/**
- * AuthRoute - Bảo vệ trang auth (login, signup, verify-otp)
- * - Nếu đã đăng nhập → redirect dashboard
- * - Nếu chưa đăng nhập → hiển thị trang
- * - Chờ isInitialized trước khi kiểm tra
- */
 export default function AuthRoute({ children }: AuthRouteProps) {
   const router = useRouter();
-  const { isAuthenticated, isInitialized } = useAppSelector(state => state.auth);
+  const { isAuthenticated, isInitialized } = useAppSelector((state) => state.auth);
+  const redirectedRef = useRef(false);
 
   useEffect(() => {
-    // Chưa check token xong → chờ
     if (!isInitialized) return;
+    if (redirectedRef.current) return;
 
-    // Đã đăng nhập + ở trang auth → redirect dashboard
     if (isAuthenticated) {
+      redirectedRef.current = true;
       router.replace(ROUTES.DASHBOARD.ROOT);
     }
   }, [isAuthenticated, isInitialized, router]);
 
-  // Chưa check token xong → không render (AuthInitializer hiển thị loading)
+  // AuthProvider đang khởi tạo → không render gì (global spinner được hiển thị)
   if (!isInitialized) {
     return null;
   }
 
-  // Chưa đăng nhập → hiển thị trang auth
+  // Chưa xác thực → hiển thị trang auth
   if (!isAuthenticated) {
     return <>{children}</>;
   }
 
-  // Đã đăng nhập → không render (chờ redirect)
+  // Đã xác thực → không render gì (chuyển hướng sẽ xảy ra)
   return null;
 }

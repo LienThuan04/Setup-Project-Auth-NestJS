@@ -2,8 +2,8 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { authAPI } from '@/lib/axios/api';
 import { ensureDeviceId } from '@/lib/cookie';
 import { toast } from 'sonner';
-import { ROUTES } from '@/lib/routes';
-import { IUser } from '@/components/ManagerUsers/useUsers';
+import { IUser } from '@/components/ManagerUsers/user-schema';
+import { tokenStore } from '@/lib/auth/token-store';
 
 interface AuthState {
     accessToken: string | null;
@@ -30,8 +30,13 @@ export const loginUser = createAsyncThunk(
         try {
             ensureDeviceId(); // Đảm bảo deviceId tồn tại trước khi login
             const response = await authAPI.login(data);
+            const payload = response.data?.data; // { accessToken, user }
+            // Cập nhật tokenStore để axios interceptor có thể đọc được token ngay sau login
+            if (payload?.accessToken) {
+                tokenStore.set(payload.accessToken);
+            }
             toast.success(response.data?.message || 'Login successful!');
-            return response.data?.data; // { accessToken, user }
+            return payload;
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Login failed');
             return rejectWithValue(error.response?.data?.message || 'Login failed');
@@ -44,7 +49,11 @@ export const refreshToken = createAsyncThunk(
     async (_, { rejectWithValue }) => {
         try {
             const response = await authAPI.refreshToken();
-            return response.data?.data; // { accessToken, user }
+            const payload = response.data?.data; // { accessToken, user }
+            if (payload?.accessToken) {
+                tokenStore.set(payload.accessToken);
+            }
+            return payload;
         } catch (error: any) {
             // Không show toast ở lần đầu refresh, chỉ show khi user đang dùng
             console.log('No valid session:', error.response?.data?.message);
@@ -71,15 +80,14 @@ export const logout = createAsyncThunk(
     async (_, { rejectWithValue }) => {
         try {
             await authAPI.logout();
-            toast.success('Logged out successfully!');
+            tokenStore.clear(); // Xóa token khỏi module store
+            toast.success('Đăng xuất thành công!');
         } catch (error: any) {
-            toast.error('Logout failed.');
-            return rejectWithValue('Logout failed');
+            toast.error('Đăng xuất thất bại.');
+            return rejectWithValue('Đăng xuất thất bại');
         }
     }
 );
-
-
 
 const authSlice = createSlice({
     name: 'auth',
@@ -96,6 +104,9 @@ const authSlice = createSlice({
         },
         setAccessTokenAndUser: (state, action) => {
             state.accessToken = action.payload.accessToken;
+            state.isAuthenticated = !!action.payload.accessToken;
+            state.isInitialized = true;
+            // Chỉ cập nhật user nếu được truyền rõ ràng (tokenStore subscriber truyền null)
             if (action.payload.user) {
                 state.user = action.payload.user;
             }

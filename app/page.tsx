@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { Minus, Plus, RotateCcw } from 'lucide-react';
+import { Minus, Plus } from 'lucide-react';
 
 export default function Home() {
   const count = useAppSelector((state) => state.counter.value);
