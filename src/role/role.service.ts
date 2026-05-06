@@ -7,6 +7,8 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { InternalServerException, NotFoundException, ConflictException, ValidationException } from '@/common/exceptions/app.exception';
 import { IRoleService } from '@/role/interfaces/role.interface';
+import { buildPaginationMeta, getPaginationParams } from '@/common/pagination/pagination.helper';
+import { GetRolesQueryDto } from './dto/GetRolesQueryDto.dto';
 
 @Injectable()
 export class RoleService implements IRoleService {
@@ -50,11 +52,29 @@ export class RoleService implements IRoleService {
     }
   }
 
-  async findAll() {
+  async findAll(query: GetRolesQueryDto) {
     try {
-      const roles = await this.prisma.role.findMany();
-      // Transform to Entity instances (for @Expose() and @Exclude() to work)
-      return roles.map(role => plainToInstance(RoleEntity, role, { excludeExtraneousValues: false }));
+      const { page, limit, skip, take } = getPaginationParams(query.page, query.limit);
+      const where = {
+        ...(query.search ? { /* search in roleName or description by role*/
+        OR: [
+          { roleName: { contains: query.search, mode: 'insensitive' as const } },
+          { description: { contains: query.search, mode: 'insensitive' as const } }
+        ] } : {})
+      }
+      const [roles, total] = await this.prisma.$transaction([
+        this.prisma.role.findMany({
+          where,
+          skip,
+          take,
+          orderBy: query.sortBy ? { [query.sortBy]: query.order } : { createdAt: 'desc' },
+        }),
+        this.prisma.role.count({ where }),
+      ]);
+      return {
+        items: roles.map(role => plainToInstance(RoleEntity, role, { excludeExtraneousValues: false })),
+        meta: buildPaginationMeta(page, limit, total),
+      }
     } catch (error: any) {
       throw new InternalServerException('Failed to retrieve roles: ' + error.message);
     }

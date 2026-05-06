@@ -1,4 +1,6 @@
 import { IApiResponse } from "@/common/interceptors/transform.interceptor";
+import { PaginatedResult } from "@/common/pagination/pagination.interface";
+import { GetRolesQueryDto } from "../dto/GetRolesQueryDto.dto";
 
 export interface ICreateRoleDto {
     roleName: string;
@@ -17,7 +19,7 @@ export interface IRoleEntity {
 // Interface Controller
 export interface IRoleController {
     create(createRoleDto: ICreateRoleDto): Promise<IApiResponse<IRoleEntity>>;
-    findAll(): Promise<IApiResponse<IRoleEntity[]>>;
+    findAll(query: GetRolesQueryDto): Promise<IApiResponse<PaginatedResult<IRoleEntity>>>;
     findOne(id: string): Promise<IApiResponse<IRoleEntity | null>>;
     update(id: string, updateRoleDto: Partial<ICreateRoleDto>): Promise<IApiResponse<IRoleEntity | null>>;
     remove(id: string): Promise<IApiResponse<IRoleEntity | null>>;
@@ -27,7 +29,7 @@ export interface IRoleController {
 export interface IRoleService {
     findRoleIdByName(roleNameOrId: string): Promise<string | null>;
     create(createRoleDto: ICreateRoleDto): Promise<IRoleEntity>;
-    findAll(): Promise<IRoleEntity[]>;
+    findAll(query: GetRolesQueryDto): Promise<PaginatedResult<IRoleEntity>>;
     findOne(id: string): Promise<IRoleEntity | null>;
     update(id: string, updateRoleDto: Partial<ICreateRoleDto>): Promise<IRoleEntity | null>;
     remove(id: string): Promise<IRoleEntity | null>;

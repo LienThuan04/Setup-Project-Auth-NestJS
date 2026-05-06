@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { ApiOperation } from '@nestjs/swagger';
 import { RoleService } from '@/role/role.service';
 import { CreateRoleDto } from '@/role/dto/create-role.dto';
@@ -7,6 +7,7 @@ import { RoleEntity } from '@/role/entities/role.entity';
 import { IApiResponse } from '@/common/interceptors/transform.interceptor';
 import { AdminOnly } from '@/common/decorators/metadata';
 import { IRoleController } from '@/role/interfaces/role.interface';
+import { GetRolesQueryDto } from './dto/GetRolesQueryDto.dto';
 
 @AdminOnly()
 @Controller('role')
@@ -22,8 +23,8 @@ export class RoleController implements IRoleController {
 
   @Get()
   @ApiOperation({ summary: 'Get all roles' })
-  async findAll(): Promise<IApiResponse<RoleEntity[]>> {
-    const result =  await this.roleService.findAll();
+  async findAll(@Query() query: GetRolesQueryDto) {
+    const result =  await this.roleService.findAll(query);
     return { statusCode: 200, message: 'Roles retrieved successfully', data: result };
   }
 

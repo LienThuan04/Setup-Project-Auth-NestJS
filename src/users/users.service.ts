@@ -103,7 +103,7 @@ export class UsersService implements IUsersService {
     try {
       const { page, limit, skip, take } = getPaginationParams(query.page, query.limit); // Currently not using the query parameters, but they can be implemented for filtering, pagination, etc.
       const whereUser = {
-        ...(query.search ? {
+        ...(query.search ? { /* search in email or username by user*/
           OR: [
             { email: { contains: query.search, mode: 'insensitive' as const } },
             { userName: { contains: query.search, mode: 'insensitive' as const } }
