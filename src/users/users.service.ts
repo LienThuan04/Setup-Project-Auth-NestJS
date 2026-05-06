@@ -11,6 +11,8 @@ import { ConflictException, InternalServerException, NotFoundException, Validati
 import { UserImageType } from '@/users/enums/UserImageType.enum';
 import { IUsersService } from '@/users/interfaces/users.interface';
 import { toUserEntity } from '@/users/helpers/toUserEntity.helper';
+import { GetUsersQueryDto } from './dto/GetUsersQueryDto.dto';
+import { buildPaginationMeta, getPaginationParams } from '@/common/pagination/pagination.helper';
 
 @Injectable()
 export class UsersService implements IUsersService {
@@ -53,7 +55,7 @@ export class UsersService implements IUsersService {
           { id: emailOrUserNameOrId }
         ]
       },
-        include: { role: { select: { roleName: true } } }
+      include: { role: { select: { roleName: true } } }
     });
     if (!user) return null;
     const { role, ...userData } = user || {}; // destructure to separate role from user data
@@ -97,10 +99,36 @@ export class UsersService implements IUsersService {
     }
   }
 
-  async findAll() {
+  async findAll(query: GetUsersQueryDto) {
     try {
-      const listUsers = await this.prisma.user.findMany({include: { role: {select: { roleName: true }} } });
-      return listUsers ? listUsers.map(user => toUserEntity(user)) : [];
+      const { page, limit, skip, take } = getPaginationParams(query.page, query.limit); // Currently not using the query parameters, but they can be implemented for filtering, pagination, etc.
+      const whereUser = {
+        ...(query.search ? {
+          OR: [
+            { email: { contains: query.search, mode: 'insensitive' as const } },
+            { userName: { contains: query.search, mode: 'insensitive' as const } }
+          ],
+        } : {}),
+        ...(query.roleName ? {
+          role: {
+            roleName: query.roleName
+          }
+        } : {})
+      };
+      const [users, total] = await this.prisma.$transaction([
+        this.prisma.user.findMany({
+          where: whereUser,
+          skip,
+          take,
+          orderBy: query.sortBy ? { [query.sortBy]: query.order } : { createdAt: 'desc' },
+          include: { role: { select: { roleName: true } } },
+        }),
+        this.prisma.user.count({ where: whereUser })
+      ]);
+      return {
+        items: users.map((user) => toUserEntity(user)),
+        meta: buildPaginationMeta(page, limit, total),
+      };
     } catch (error: any) {
       if (error instanceof PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new NotFoundException('Database error: ' + error.message);
@@ -164,7 +192,7 @@ export class UsersService implements IUsersService {
       if (!roleId || roleId === null) {
         throw new NotFoundException('Role not found');
       }
-      
+
       const updatedUser = await this.prisma.user.update({
         where: { id },
         data: { roleId },

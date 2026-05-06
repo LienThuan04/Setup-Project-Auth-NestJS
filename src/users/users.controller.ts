@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UploadedFile, UseInterceptors, Query } from '@nestjs/common';
 import { UsersService } from '@/users/users.service';
 import { CreateUserDto } from '@/users/dto/create-user.dto';
 import { UpdateUserAvatarOrBGDto, UpdateUserDto, UpdateUserRoleDto } from '@/users/dto/update-user.dto';
@@ -8,6 +8,7 @@ import { ValidationException } from '@/common/exceptions/app.exception';
 import { AdminOnly } from '@/common/decorators/metadata';
 import { UserImageType } from '@/users/enums/UserImageType.enum';
 import { IUsersController } from '@/users/interfaces/users.interface';
+import { GetUsersQueryDto } from '@/users/dto/GetUsersQueryDto.dto';
 
 @AdminOnly() // Mark the entire controller as admin-only, meaning all routes in this controller require admin privileges to access.
 @Controller('users')
@@ -23,8 +24,8 @@ export class UsersController implements IUsersController {
 
   @Get()
   @ApiOperation({ summary: 'Get all users' })
-  async findAll() {
-    const result = await this.usersService.findAll();
+  async findAll(@Query() query: GetUsersQueryDto) {
+    const result = await this.usersService.findAll(query);
     return { statusCode: 200, message: 'Users retrieved successfully', data: result };
   }
 
