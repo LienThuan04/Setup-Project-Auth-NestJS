@@ -10,9 +10,9 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from '@/auth/auth.module';
 import { FilesModule } from './files/files.module';
 import { ScheduleModule } from '@nestjs/schedule';
-import { JobsModule } from './jobs/jobs.module';
-import { EmailModule } from './email/email.module';
-import { RedisModule } from './redis/redis.module';
+import { JobsModule } from '@/jobs/jobs.module';
+import { EmailModule } from '@/email/email.module';
+import { RedisModule } from '@/redis/redis.module';
 
 @Module({
   imports: [
