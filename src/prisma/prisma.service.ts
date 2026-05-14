@@ -14,6 +14,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         if (!databaseUrl) {
             throw new Error('DATABASE_URL environment variable is not set. Please set it to your Prisma Data API URL !!!');
         }
+        // connect to PostgreSQL Supabase!
         // const pool = new Pool({
         //     connectionString: databaseUrl,
         //     ssl: {
@@ -22,6 +23,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         // })
 
         // super({ adapter: new PrismaPg(pool) }); // use the Prisma Data API URL from the environment variable for connection
+        // connect to Prisma DB
         super({ accelerateUrl: databaseUrl }); // use the Prisma Data API URL from the environment variable for connection
 
 
