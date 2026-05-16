@@ -5,7 +5,7 @@ import { UpdateUserAvatarOrBGDto, UpdateUserDto, UpdateUserRoleDto } from '@/use
 import { ApiBody, ApiConsumes, ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ValidationException } from '@/common/exceptions/app.exception';
-import { AdminOnly } from '@/common/decorators/metadata';
+import { AdminOnly, SkipAdminOnly } from '@/common/decorators/metadata';
 import { UserImageType } from '@/users/enums/UserImageType.enum';
 import { IUsersController } from '@/users/interfaces/users.interface';
 import { GetUsersQueryDto } from '@/users/dto/GetUsersQueryDto.dto';
@@ -36,6 +36,7 @@ export class UsersController implements IUsersController {
     return { statusCode: 200, message: 'User retrieved successfully', data: result };
   }
 
+  @SkipAdminOnly()
   @Patch(':id')
   @ApiOperation({ summary: 'Update a user' })
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {

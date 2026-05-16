@@ -9,7 +9,7 @@ import { LocalAuthGuard } from '@/lib/passport/local-auth.guard';
 import { GoogleAuthGuard } from '@/lib/passport/google-auth.guard';
 import { ConfigService } from '@nestjs/config';
 import { ApiOperation } from '@nestjs/swagger';
-import { ConflictException, InternalServerException, NotFoundException } from '@/common/exceptions/app.exception';
+import { UnauthorizedException, InternalServerException, NotFoundException } from '@/common/exceptions/app.exception';
 import type { IAuthController, ISanitizedUser } from '@/auth/interfaces/auth.interface';
 
 @Controller('auth')
@@ -58,7 +58,7 @@ export class AuthController implements IAuthController {
     @UseGuards(LocalAuthGuard) // Apply the local authentication guard to this route
     @ApiOperation({ summary: 'Login a user for a session and cookie management' }) // Add Swagger documentation for this endpoint
     @Post('login')
-    async login(@Res({ passthrough: true }) res: Response, @User() user: ISanitizedUser, @Body() loginDto: LoginDto, @DeviceId() deviceId: string) {
+    async login(@Res({ passthrough: true }) res: Response, @User() user: ISanitizedUser, @Body() _loginDto: LoginDto, @DeviceId() deviceId: string) {
         const result = await this.authService.login(user, res, deviceId);
         return {
             statusCode: 200,
@@ -76,7 +76,7 @@ export class AuthController implements IAuthController {
     async refreshToken(@Res({ passthrough: true }) res: Response, @Req() req: Request) {
         const oldCookieRefreshToken = req.cookies[this.refreshTokenName];
         if (!oldCookieRefreshToken) {
-            throw new ConflictException('Refresh token is missing in cookies');
+            throw new UnauthorizedException('Refresh token is missing in cookies');
         }
         const result = await this.authService.refreshToken(oldCookieRefreshToken, res);
         return {
