@@ -16,6 +16,7 @@ import { shouldRefreshToken } from '@/lib/axios/refresh-exclude';
 import { tokenStore } from '@/lib/auth/token-store';
 import { refreshQueue } from '@/lib/api/refresh-queue';
 import { authAPI } from '@/lib/axios/api';
+import { ROUTES } from '@/lib/routes';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 const ACCESS_TOKEN_KEY = process.env.NEXT_PUBLIC_ACCESS_TOKEN_KEY;
@@ -116,7 +117,7 @@ axiosInstance.interceptors.response.use(
 
         // Chuyển hướng về login (chỉ phía client)
         if (typeof window !== 'undefined') {
-          window.location.href = '/login';
+          window.location.href = ROUTES.LOGIN;
         }
         return Promise.reject(refreshError);
       }
@@ -125,7 +126,11 @@ axiosInstance.interceptors.response.use(
     // ── Ghi log cho lỗi không phải 401 ──
     if (error.response) {
       const { status, data } = error.response;
-      console.error(`[API] Error ${status}:`, data?.details || data);
+      // /auth/refresh trả 401 khi chưa login là expected — không cần log
+      const isExpectedRefreshFailure = authAPI.refreshToken;
+      if (!isExpectedRefreshFailure) {
+        console.error(`[API] Error ${status}:`, data?.details || data);
+      }
     } else if (error.request) {
       console.error('[API] Network error');
     }

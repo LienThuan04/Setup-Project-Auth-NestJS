@@ -20,7 +20,7 @@ export const authAPI = {
 
     // Refresh token
     refreshToken: () =>
-        axiosInstance.post('/auth/refresh',),
+        axiosInstance.post('/auth/refresh'),
 
     // Get profile user hiện tại
     getProfile: () =>
@@ -51,8 +51,9 @@ export const authAPI = {
 
 // ==================== USERS APIs ====================
 export const usersAPI = {
-    // Lấy tất cả users
-    getAll: () => axiosInstance.get('/users'),
+    // Lấy tất cả users (paginated)
+    getAll: (params?: { page?: number; limit?: number; search?: string; roleName?: string; sortBy?: string; order?: 'asc' | 'desc' }) =>
+        axiosInstance.get('/users', { params }),
 
     // Tạo user mới
     create: (data: {
@@ -91,9 +92,9 @@ export const usersAPI = {
 
 // ==================== ROLE APIs ====================
 export const rolesAPI = {
-    // Lấy tất cả roles
-    getAll: () =>
-        axiosInstance.get('/role'),
+    // Lấy tất cả roles (paginated)
+    getAll: (params?: { page?: number; limit?: number; search?: string; sortBy?: string; order?: 'asc' | 'desc' }) =>
+        axiosInstance.get('/role', { params }),
 
     // Tạo role mới
     create: (data: { roleName: string; description: string }) =>

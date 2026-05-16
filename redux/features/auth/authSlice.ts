@@ -2,7 +2,7 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { authAPI } from '@/lib/axios/api';
 import { ensureDeviceId } from '@/lib/cookie';
 import { toast } from 'sonner';
-import { IUser } from '@/components/ManagerUsers/user-schema';
+import { IUser } from '@/features/users/types';
 import { tokenStore } from '@/lib/auth/token-store';
 
 interface AuthState {
@@ -81,10 +81,10 @@ export const logout = createAsyncThunk(
         try {
             await authAPI.logout();
             tokenStore.clear(); // Xóa token khỏi module store
-            toast.success('Đăng xuất thành công!');
+            toast.success('Logged out successfully!');
         } catch (error: any) {
-            toast.error('Đăng xuất thất bại.');
-            return rejectWithValue('Đăng xuất thất bại');
+            toast.error('Failed to logout.');
+            return rejectWithValue('Failed to logout');
         }
     }
 );
@@ -111,11 +111,16 @@ const authSlice = createSlice({
                 state.user = action.payload.user;
             }
         },
+        // Patch user info (dùng khi update profile để không cần gọi lại getProfile)
+        patchUser: (state, action: { payload: Partial<IUser> }) => {
+            if (state.user) {
+                state.user = { ...state.user, ...action.payload };
+            }
+        },
     },
     // Xử lý các async thunk
     extraReducers: (builder) => {
         builder
-
             // Login
             .addCase(loginUser.pending, (state) => {
                 state.isLoading = true;
@@ -190,5 +195,5 @@ const authSlice = createSlice({
     },
 });
 
-export const { clearAuth, setAccessTokenAndUser } = authSlice.actions;
+export const { clearAuth, setAccessTokenAndUser, patchUser } = authSlice.actions;
 export const authReducer = authSlice.reducer;

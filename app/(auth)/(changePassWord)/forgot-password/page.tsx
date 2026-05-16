@@ -1,5 +1,5 @@
-import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm';
-import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { ForgotPasswordForm } from '@/features/auth/components/ForgotPasswordForm';
+import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { Suspense } from 'react';
 
 export default function ForgotPasswordPage() {

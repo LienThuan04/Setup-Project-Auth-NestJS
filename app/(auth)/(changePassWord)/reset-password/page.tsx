@@ -1,5 +1,5 @@
-import { ResetPasswordForm } from '@/components/auth/ResetPasswordForm';
-import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { ResetPasswordForm } from '@/features/auth/components/ResetPasswordForm';
+import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { Suspense } from 'react';
 
 export default function ResetPasswordPage() {

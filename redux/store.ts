@@ -1,13 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { authReducer, setAccessTokenAndUser, clearAuth } from '@/redux/features/auth/authSlice';
-import counterReducer from '@/redux/features/counter/counterSlice';
 import { themeReducer } from '@/redux/features/theme/themeSlice';
 import { tokenStore } from '@/lib/auth/token-store';
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
-    counter: counterReducer,
     theme: themeReducer,
   },
 });

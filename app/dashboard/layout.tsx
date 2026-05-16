@@ -1,7 +1,7 @@
 'use client';
 
-import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { AppSidebar } from "@/components/app-sidebar";
+import ProtectedRoute from '@/features/auth/providers/ProtectedRoute';
+import { AppSidebar } from "@/components/layout/AppSidebar";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -17,6 +17,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { usePathname } from 'next/navigation';
+import { ROUTES } from '@/lib/routes';
 
 // Map path to display name
 const breadcrumbNames: Record<string, string> = {
@@ -27,7 +28,7 @@ const breadcrumbNames: Record<string, string> = {
 };
 
 function getBreadcrumbName(pathname: string): string {
-  if (pathname === '/dashboard') return 'Overview';
+  if (pathname === ROUTES.DASHBOARD.ROOT) return 'Overview';
   
   const segments = pathname.split('/').filter(Boolean);
   const lastSegment = segments[segments.length - 1];
@@ -61,7 +62,7 @@ export default function DashboardLayout({
               <Breadcrumb>
                 <BreadcrumbList>
                   <BreadcrumbItem className="hidden md:block">
-                    <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+                    <BreadcrumbLink href={ROUTES.DASHBOARD.ROOT}>Dashboard</BreadcrumbLink>
                   </BreadcrumbItem>
                   {pathname !== '/dashboard' && (
                     <>

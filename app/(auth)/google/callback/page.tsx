@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { setAccessTokenAndUser } from '@/redux/features/auth/authSlice';
 import { store } from '@/redux/store';
+import { ROUTES } from '@/lib/routes';
 
 export default function GoogleCallbackPage() {
   const router = useRouter();
@@ -16,7 +17,7 @@ export default function GoogleCallbackPage() {
     
     if (!encodedData) {
       toast.error('Google login failed - no data received');
-      router.push('/login');
+      router.push(ROUTES.LOGIN);
       return;
     }
 
@@ -32,7 +33,7 @@ export default function GoogleCallbackPage() {
       }
       if (!tokenKey) {
         toast.error('Access token key not configured in environment variables');
-        router.push('/login');
+        router.push(ROUTES.LOGIN);
         return;
       }
 
@@ -41,11 +42,11 @@ export default function GoogleCallbackPage() {
 
 
       toast.success(`Welcome, ${user.userName}!`);
-      router.push('/dashboard');
+      router.push(ROUTES.DASHBOARD.ROOT);
     } catch (error) {
       console.error('Failed to parse Google login data:', error);
       toast.error('Google login failed');
-      router.push('/login');
+      router.push(ROUTES.LOGIN);
     }
   }, [searchParams, router, tokenKey]);
 

@@ -1,5 +1,5 @@
-import { LoadingSkeleton } from "@/components/LoadingSkeleton";
-import { VerifyOtpForm } from "@/components/auth/verify-otp-form";
+import { LoadingSkeleton } from "@/components/shared/LoadingSkeleton";
+import { VerifyOtpForm } from "@/features/auth/components/VerifyOtpForm";
 import { Suspense } from "react";
 
 export default function VerifyOtpPage() {
