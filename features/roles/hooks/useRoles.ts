@@ -12,6 +12,7 @@ export function useRoles() {
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -24,12 +25,17 @@ export function useRoles() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    setPage(1);
+  };
+
   const fetchRoles = useCallback(async () => {
     setLoading(true);
     try {
       const response = await rolesAPI.getAll({
         page,
-        limit: DEFAULT_LIMIT,
+        limit,
         search: debouncedSearch || undefined,
       });
       const data = response.data?.data;
@@ -40,7 +46,7 @@ export function useRoles() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch]);
+  }, [page, limit, debouncedSearch]);
 
   useEffect(() => {
     fetchRoles();
@@ -80,6 +86,7 @@ export function useRoles() {
   return {
     roles, loading, meta,
     page, setPage,
+    limit, onLimitChange: handleLimitChange,
     search, setSearch,
     createRole, updateRole, deleteRole,
     refetch: fetchRoles,
