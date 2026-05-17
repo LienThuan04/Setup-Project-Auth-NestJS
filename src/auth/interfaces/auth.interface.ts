@@ -5,6 +5,8 @@
 
 import type { Request, Response } from 'express';
 import { IApiResponse } from '@/common/interceptors/transform.interceptor';
+import type { IUserEntity } from '@/users/interfaces/users.interface';
+import type { RequestUpdateUserOtpDto } from '@/users/dto/update-user.dto';
 
 /* ------------------------------------------------------------
  1. DTO Interfaces
@@ -163,6 +165,17 @@ export interface IPasswordService {
 
 export interface IGoogleService {
   login(googleUser: IGoogleUser, res: Response, deviceId: string): Promise<ILoginResult>;
+}
+
+export interface IUserUpdateOtpRequestResult {
+  skipOtp: boolean;
+  message: string;
+  data: IUserEntity | { targetEmail: string; changes: string[] };
+}
+
+export interface IUserUpdateOtpService {
+  requestUpdate(userId: string, dto: RequestUpdateUserOtpDto): Promise<IUserUpdateOtpRequestResult>;
+  verifyAndApplyUpdate(userId: string, otp: string): Promise<{ message: string; data: IUserEntity }>;
 }
 
 /* ------------------------------------------------------------
