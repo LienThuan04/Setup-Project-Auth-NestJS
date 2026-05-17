@@ -51,7 +51,6 @@ export class UsersController implements IUsersController {
   }
 
   // ============ OTP-protected profile update (replaces PATCH /users/:id) ============
-
   @SkipAdminOnly()
   @Post('update-profile/request-otp')
   @ApiOperation({
