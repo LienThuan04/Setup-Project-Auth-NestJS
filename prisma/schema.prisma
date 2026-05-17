@@ -182,6 +182,20 @@ model PendingRegistration {
   updatedAt    DateTime @updatedAt
 }
 
+model PendingUserUpdate {
+  id            String   @id @default(uuid())
+  userId        String   @unique // Một user chỉ có 1 pending update tại 1 thời điểm
+  newEmail      String?  // Email mới (nếu có thay đổi)
+  newUserName   String?  // Username mới (nếu có thay đổi)
+  newDescription String? // Description mới (nếu có thay đổi)
+  otpHash       String
+  otpExpiresAt  DateTime
+  attemptCount  Int      @default(0)
+  resendAfter   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 // ═══════════════════════════════════════════════════════════════
 // SPACES
 // ═══════════════════════════════════════════════════════════════
