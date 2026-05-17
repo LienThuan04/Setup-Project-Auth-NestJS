@@ -38,8 +38,8 @@ export function NavUser({ user }: { user: IUser }) {
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg" side={isMobile ? "bottom" : "right"} align="end" sideOffset={4}>
-            <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+            <DropdownMenuLabel className="p-0 font-normal cursor-pointer" onClick={() => router.push(ROUTES.DASHBOARD.SETTINGS_TAB('profile'))}>
+              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm hover:bg-accent rounded-md transition-colors">
                 <Avatar className="h-8 w-8 rounded-lg">
                   <AvatarImage src={user.avatarUrl as string} alt={user.userName} />
                   <AvatarFallback className="rounded-lg">{user.userName.slice(0, 2).toUpperCase()}</AvatarFallback>
@@ -52,7 +52,7 @@ export function NavUser({ user }: { user: IUser }) {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push(ROUTES.DASHBOARD.SETTINGS_TAB('account'))}>
                 <BadgeCheckIcon />
                 Account
               </DropdownMenuItem>

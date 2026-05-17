@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarRail } from "@/components/ui/sidebar"
-import { GalleryVerticalEndIcon, ShieldCogIcon, UserCircleIcon, Settings2Icon } from "lucide-react"
+import { GalleryVerticalEndIcon, ShieldCogIcon, Settings2Icon } from "lucide-react"
 import { useAppSelector } from "@/redux/hooks"
 import { ROUTES } from "@/lib/routes"
 import { ROLES } from "@/constants/roles"
@@ -29,7 +29,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       url: ROUTES.DASHBOARD.SETTINGS,
       icon: <Settings2Icon />,
       items: [
-        { title: "My Profile", url: ROUTES.DASHBOARD.PROFILE },
         { title: "Account Settings", url: ROUTES.DASHBOARD.SETTINGS },
       ],
     },
