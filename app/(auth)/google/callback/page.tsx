@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { setAccessTokenAndUser } from '@/redux/features/auth/authSlice';
 import { store } from '@/redux/store';
 import { ROUTES } from '@/lib/routes';
+import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 
 export default function GoogleCallbackPage() {
   const router = useRouter();
@@ -52,11 +53,7 @@ export default function GoogleCallbackPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <h2 className="text-xl font-semibold">Processing Google login...</h2>
-        <p className="text-muted-foreground mt-2">Please wait while we complete your login</p>
-        <div className="mt-4 animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
-      </div>
+      <LoadingSkeleton variant="spinner" size="lg" text="Processing Google login..." />
     </div>
   );
 }
