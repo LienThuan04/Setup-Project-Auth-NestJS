@@ -35,20 +35,8 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col relative">
-        {/* 👇 Light mode background */}
-        <div
-          className="absolute inset-0 z-0 dark:hidden"
-          style={{
-            background: "radial-gradient(125% 125% at 50% 90%, #fff 40%, #6366f1 100%)",
-          }}
-        />
-        {/* 👇 Dark mode background */}
-        <div
-          className="absolute inset-0 z-0 hidden dark:block"
-          style={{
-            background: "radial-gradient(125% 125% at 50% 100%, #000000 40%, #010133 100%)",
-          }}
-        />
+        <div className="absolute inset-0 z-0 dark:hidden bg-gradient-light" />
+        <div className="absolute inset-0 z-0 hidden dark:block bg-gradient-dark" />
         <div className="relative z-10 flex-1 flex flex-col">
           <ReduxProvider>
             <TooltipProvider>

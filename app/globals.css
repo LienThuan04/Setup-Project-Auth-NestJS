@@ -128,3 +128,12 @@
     @apply font-sans;
   }
 }
+
+@layer utilities {
+  .bg-gradient-light {
+    background: radial-gradient(125% 125% at 50% 90%, #fff 40%, #6366f1 100%);
+  }
+  .bg-gradient-dark {
+    background: radial-gradient(125% 125% at 50% 100%, #000000 40%, #010133 100%);
+  }
+}
