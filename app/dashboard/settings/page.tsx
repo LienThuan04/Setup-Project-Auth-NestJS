@@ -1,145 +1,104 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { authAPI } from '@/lib/axios/api';
-import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { LoaderIcon, KeyRoundIcon, SendIcon } from 'lucide-react';
-import { useAppSelector } from '@/redux/hooks';
-import { ROUTES } from '@/lib/routes';
+import { useMemo } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useProfile } from '@/features/profile/hooks/useProfile';
+import { ProfileBanner } from '@/features/profile/components/ProfileBanner';
+import { ProfileInfoForm } from '@/features/profile/components/ProfileInfoForm';
+import { ProfileAccountCard } from '@/features/profile/components/ProfileAccountCard';
+import { SecuritySettingsCard } from '@/features/profile/components/SecuritySettingsCard';
+import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
+import { BadgeCheckIcon, InfoIcon, KeyRoundIcon } from 'lucide-react';
 
-type Step = 'request' | 'verify';
+type SettingsTab = 'profile' | 'account' | 'security';
+
+const VALID_TABS: SettingsTab[] = ['profile', 'account', 'security'];
 
 export default function SettingsPage() {
-  const { user } = useAppSelector((state) => state.auth);
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { user, isSavingInfo, isVerifyingOtp, otpTargetEmail, otpChanges, isUploadingImg, saveInfo, verifyOtp, cancelOtp, uploadImage } = useProfile();
 
-  const [step, setStep] = useState<Step>('request');
-  const [email, setEmail] = useState(user?.email ?? '');
-  const [otp, setOtp] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const activeTab = useMemo<SettingsTab>(() => {
+    const rawTab = searchParams.get('tab');
+    return VALID_TABS.includes(rawTab as SettingsTab) ? (rawTab as SettingsTab) : 'profile';
+  }, [searchParams]);
 
-  const handleSendOtp = async () => {
-    setIsLoading(true);
-    try {
-      await authAPI.changePasswordSendOtp({ email });
-      toast.success('OTP sent to your email');
-      setStep('verify');
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Failed to send OTP');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
-    setIsLoading(true);
-    try {
-      await authAPI.changePasswordVerifyOtp({ email, otp, newPassword });
-      toast.success('Password changed successfully. Please log in again.');
-      router.replace(ROUTES.LOGIN);
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Failed to change password');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleTabChange = (tab: string) => {
+    const nextTab = VALID_TABS.includes(tab as SettingsTab) ? (tab as SettingsTab) : 'profile';
+    router.replace(`${pathname}?tab=${nextTab}`);
   };
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-muted-foreground mt-1">Manage your account settings</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Account Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Manage your profile, account details, and security settings in one place.
+        </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <KeyRoundIcon className="h-4 w-4" />
-            Change Password
-          </CardTitle>
-          <CardDescription>
-            We will send a one-time code to your email to confirm the change.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {step === 'request' && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <Button onClick={handleSendOtp} disabled={isLoading || !email}>
-                {isLoading
-                  ? <><LoaderIcon className="mr-2 h-4 w-4 animate-spin" /> Sending...</>
-                  : <><SendIcon className="mr-2 h-4 w-4" /> Send OTP</>
-                }
-              </Button>
-            </>
-          )}
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3 sm:w-fit">
+          <TabsTrigger value="profile">
+            <InfoIcon />
+            Profile
+          </TabsTrigger>
+          <TabsTrigger value="account">
+            <BadgeCheckIcon />
+            Account
+          </TabsTrigger>
+          <TabsTrigger value="security">
+            <KeyRoundIcon />
+            Security
+          </TabsTrigger>
+        </TabsList>
 
-          {step === 'verify' && (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="otp">OTP Code</Label>
-                <Input
-                  id="otp"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="6-digit code from your email"
-                  maxLength={6}
+        {!user ? (
+          <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+            <LoadingSkeleton variant="card" text="Loading profile..." className="min-h-[260px]" />
+            <LoadingSkeleton variant="card" text="Loading settings..." className="min-h-[320px]" />
+          </div>
+        ) : (
+          <>
+            <TabsContent value="profile">
+              <div className="grid gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+                <ProfileBanner
+                  user={user}
+                  editable
+                  isUploadingImg={isUploadingImg}
+                  onUpload={uploadImage}
+                />
+                <ProfileInfoForm
+                  user={user}
+                  editable
+                  isSaving={isSavingInfo}
+                  isVerifyingOtp={isVerifyingOtp}
+                  otpTargetEmail={otpTargetEmail}
+                  otpChanges={otpChanges}
+                  onSave={saveInfo}
+                  onVerifyOtp={verifyOtp}
+                  onCancelOtp={cancelOtp}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="newPassword">New Password</Label>
-                <Input
-                  id="newPassword"
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                />
+            </TabsContent>
+
+            <TabsContent value="account">
+              <div className="max-w-4xl">
+                <ProfileAccountCard user={user} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                />
+            </TabsContent>
+
+            <TabsContent value="security">
+              <div className="max-w-3xl">
+                <SecuritySettingsCard email={user.email} />
               </div>
-              <Separator />
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => { setStep('request'); setOtp(''); }}>
-                  Back
-                </Button>
-                <Button onClick={handleVerifyOtp} disabled={isLoading || !otp || !newPassword}>
-                  {isLoading
-                    ? <><LoaderIcon className="mr-2 h-4 w-4 animate-spin" /> Verifying...</>
-                    : 'Change Password'
-                  }
-                </Button>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </TabsContent>
+          </>
+        )}
+      </Tabs>
     </div>
   );
 }
