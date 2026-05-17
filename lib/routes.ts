@@ -12,9 +12,11 @@ export const ROUTES = {
   DASHBOARD: {
     ROOT: '/dashboard',
     USER_MANAGEMENT: '/dashboard/users',
+    USER_DETAIL: (id: string) => `/dashboard/users/${id}`,
     ROLE_MANAGEMENT: '/dashboard/roles',
-    PROFILE: '/dashboard/profile',
     SETTINGS: '/dashboard/settings',
+    SETTINGS_TAB: (tab: 'profile' | 'account' | 'security') => `/dashboard/settings?tab=${tab}`,
+    PROFILE: '/dashboard/profile',
   },
   UNAUTHORIZED: '/unauthorized',
 } as const;

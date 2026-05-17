@@ -67,13 +67,24 @@ export const usersAPI = {
     getById: (id: string) =>
         axiosInstance.get(`/users/${id}`),
 
-    // Cập nhật user
+    // Admin: Cập nhật user trực tiếp (không OTP, yêu cầu quyền admin)
     update: (id: string, data: {
         email?: string;
         userName?: string;
         description?: string;
     }) => axiosInstance.patch(`/users/${id}`, data),
 
+    // Cập nhật profile (OTP-flow, dành cho user tự sửa)
+    requestUpdateOtp: (data: {
+        email?: string;
+        userName?: string;
+        description?: string;
+    }) => axiosInstance.post('/users/update-profile/request-otp', data),
+
+    verifyUpdateOtp: (data: { otp: string }) =>
+        axiosInstance.post('/users/update-profile/verify-otp', data),
+
+    // Cập nhật role của user (admin)
     updateRole: (id: string, data: { roleNameOrId: string }) =>
         axiosInstance.patch(`/users/role/${id}`, data),
 
