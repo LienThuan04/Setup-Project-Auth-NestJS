@@ -33,9 +33,9 @@ function getBreadcrumbName(pathname: string): string {
   const segments = pathname.split('/').filter(Boolean);
   const lastSegment = segments[segments.length - 1];
   
-  // Nếu là UUID (user detail) → hiển thị "User Detail"
+  // Nếu là UUID (user detail) → hiển thị "User Profile"
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lastSegment)) {
-    return 'User Detail';
+    return 'User Profile';
   }
   
   // Lấy tên từ map hoặc capitalize

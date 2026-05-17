@@ -17,7 +17,7 @@ import { useAppSelector } from '@/redux/hooks';
 const EMPTY_FORM: UserFormData = { email: '', password: '', userName: '', roleName: ROLES.USER, description: '' };
 
 export default function UsersPage() {
-  const { users, loading, meta, setPage, search, setSearch, createUser, updateUser, deleteUser, updateRoleUser } = useUsers();
+  const { users, loading, meta, setPage, onLimitChange, search, setSearch, createUser, updateUser, deleteUser, updateRoleUser } = useUsers();
   const [selectedUser, setSelectedUser] = useState<IUser | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -85,7 +85,7 @@ export default function UsersPage() {
       <div className="space-y-4">
         <UsersHeader search={search} onSearchChange={setSearch} onAddClick={handleAdd} />
         <UsersTable users={users} loading={loading} onEdit={handleEdit} onDelete={handleDelete} onChangeRole={handleChangeRole} currentUserId={authUser?.id} />
-        {meta && <Pagination meta={meta} onPageChange={setPage} />}
+        {meta && <Pagination meta={meta} onPageChange={setPage} onLimitChange={onLimitChange} />}
         <UserDialog open={dialogOpen} onOpenChange={setDialogOpen} user={selectedUser} formData={formData} onFormChange={setFormData} onSubmit={handleSubmit} />
         <DeleteUserDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} user={selectedUser} onConfirm={handleConfirmDelete} />
       </div>

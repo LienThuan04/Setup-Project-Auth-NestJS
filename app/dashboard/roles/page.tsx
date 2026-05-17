@@ -17,7 +17,7 @@ import { useAppSelector } from '@/redux/hooks';
 const EMPTY_FORM: RoleFormData = { roleName: '', description: '' };
 
 export default function RolesPage() {
-  const { roles, loading, meta, setPage, search, setSearch, createRole, updateRole, deleteRole } = useRoles();
+  const { roles, loading, meta, setPage, onLimitChange, search, setSearch, createRole, updateRole, deleteRole } = useRoles();
   const [selectedRole, setSelectedRole] = useState<IRole | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -60,7 +60,7 @@ export default function RolesPage() {
       <div className="space-y-4">
         <RolesHeader search={search} onSearchChange={setSearch} onAddClick={handleAdd} />
         <RolesTable roles={roles} loading={loading} onEdit={handleEdit} onDelete={handleDelete} currentRoleName={authUserRole} />
-        {meta && <Pagination meta={meta} onPageChange={setPage} />}
+        {meta && <Pagination meta={meta} onPageChange={setPage} onLimitChange={onLimitChange} />}
         <RoleDialog open={dialogOpen} onOpenChange={setDialogOpen} role={selectedRole} formData={formData} onFormChange={setFormData} onSubmit={handleSubmit} />
         <DeleteRoleDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen} role={selectedRole} onConfirm={handleConfirmDelete} />
       </div>
