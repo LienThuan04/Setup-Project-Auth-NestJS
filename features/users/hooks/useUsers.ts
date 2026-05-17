@@ -12,6 +12,7 @@ export function useUsers() {
   const [meta, setMeta] = useState<PaginationMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -20,16 +21,21 @@ export function useUsers() {
     const timer = setTimeout(() => {
       setPage(1);
       setDebouncedSearch(search);
-    }, 400);
+    }, 500);
     return () => clearTimeout(timer);
   }, [search]);
+
+  const handleLimitChange = (newLimit: number) => {
+    setLimit(newLimit);
+    setPage(1);
+  };
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       const response = await usersAPI.getAll({
         page,
-        limit: DEFAULT_LIMIT,
+        limit,
         search: debouncedSearch || undefined,
       });
       const data = response.data?.data;
@@ -40,7 +46,7 @@ export function useUsers() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch]);
+  }, [page, limit, debouncedSearch]);
 
   useEffect(() => {
     fetchUsers();
@@ -97,6 +103,7 @@ export function useUsers() {
   return {
     users, loading, meta,
     page, setPage,
+    limit, onLimitChange: handleLimitChange,
     search, setSearch,
     createUser, updateUser, deleteUser, updateRoleUser,
     refetch: fetchUsers,
