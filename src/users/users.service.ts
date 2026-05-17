@@ -160,15 +160,32 @@ export class UsersService implements IUsersService {
       if (!user) {
         throw new NotFoundException(`User with ID ${id} not found`);
       }
-      const checkResult = await this.checkEmailOrUsernameExists(updateUserDto.email || user.email, updateUserDto.userName || user.userName, id);
 
-      // Fix: Check exists property, not the object itself
+      const checkResult = await this.checkEmailOrUsernameExists(
+        updateUserDto.email || user.email,
+        updateUserDto.userName || user.userName,
+        id,
+      );
+
       if (checkResult.exists) {
         if (checkResult.field === 'email') {
           throw new ConflictException('Email already exists');
         }
-        throw new ConflictException('Username already exists');
+        if (checkResult.field === 'username') {
+          throw new ConflictException('Username already exists');
+        }
       }
+
+      // Google account: không cho đổi email và username (chỉ đổi được description/role/avatar)
+      if (user.accountType === 'google' || user.googleId) {
+        if (updateUserDto.email && updateUserDto.email !== user.email) {
+          throw new ConflictException('Email cannot be changed for Google-authenticated accounts.');
+        }
+        if (updateUserDto.userName && updateUserDto.userName !== user.userName) {
+          throw new ConflictException('Username cannot be changed for Google-authenticated accounts.');
+        }
+      }
+
       const updatedUser = await this.prisma.user.update({
         where: { id },
         data: updateUserDto,

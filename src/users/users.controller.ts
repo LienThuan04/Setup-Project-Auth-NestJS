@@ -1,19 +1,25 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UploadedFile, UseInterceptors, Query } from '@nestjs/common';
 import { UsersService } from '@/users/users.service';
 import { CreateUserDto } from '@/users/dto/create-user.dto';
-import { UpdateUserAvatarOrBGDto, UpdateUserDto, UpdateUserRoleDto } from '@/users/dto/update-user.dto';
+import { UpdateUserAvatarOrBGDto, UpdateUserDto, UpdateUserRoleDto, RequestUpdateUserOtpDto, VerifyUpdateUserOtpDto } from '@/users/dto/update-user.dto';
 import { ApiBody, ApiConsumes, ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ValidationException } from '@/common/exceptions/app.exception';
 import { AdminOnly, SkipAdminOnly } from '@/common/decorators/metadata';
+import { User } from '@/common/decorators/user.decorator';
 import { UserImageType } from '@/users/enums/UserImageType.enum';
 import { IUsersController } from '@/users/interfaces/users.interface';
 import { GetUsersQueryDto } from '@/users/dto/GetUsersQueryDto.dto';
+import { UserUpdateOtpService } from '@/auth/services/user-update-otp.service';
+import type { ISanitizedUser } from '@/auth/interfaces/auth.interface';
 
 @AdminOnly() // Mark the entire controller as admin-only, meaning all routes in this controller require admin privileges to access.
 @Controller('users')
 export class UsersController implements IUsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly userUpdateOtpService: UserUpdateOtpService,
+  ) { }
 
   @Post()
   @ApiOperation({ summary: 'Create a new user' })
@@ -36,13 +42,57 @@ export class UsersController implements IUsersController {
     return { statusCode: 200, message: 'User retrieved successfully', data: result };
   }
 
-  @SkipAdminOnly()
+  // Admin-only direct update (no OTP, for admin user management)
   @Patch(':id')
-  @ApiOperation({ summary: 'Update a user' })
+  @ApiOperation({ summary: 'Admin: Update a user directly (no OTP required)' })
   async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
     const result = await this.usersService.update(id, updateUserDto);
     return { statusCode: 200, message: 'User updated successfully', data: result };
   }
+
+  // ============ OTP-protected profile update (replaces PATCH /users/:id) ============
+
+  @SkipAdminOnly()
+  @Post('update-profile/request-otp')
+  @ApiOperation({
+    summary: 'Request OTP to update profile (email/username/description)',
+    description: `Sends OTP to verify identity before updating sensitive fields:
+- If only description changed → updates immediately, no OTP needed.
+- If email changed → OTP sent to the NEW email.
+- If username changed (email unchanged) → OTP sent to the CURRENT email.`,
+  })
+  async requestUpdateOtp(
+    @User() user: ISanitizedUser,
+    @Body() dto: RequestUpdateUserOtpDto,
+  ) {
+    const result = await this.userUpdateOtpService.requestUpdate(user.id, dto);
+    return {
+      statusCode: 200,
+      message: result.skipOtp ? 'Description updated successfully' : 'OTP sent to your email. Please verify to complete the update.',
+      skipOtp: result.skipOtp, // Frontend uses this flag to know if OTP verification is needed or if update was applied immediately
+      data: result.data,
+    };
+  }
+
+  @SkipAdminOnly()
+  @Post('update-profile/verify-otp')
+  @ApiOperation({
+    summary: 'Verify OTP and apply profile changes',
+    description: 'After receiving OTP from request-otp, call this endpoint with the OTP to apply the changes.',
+  })
+  async verifyUpdateOtp(
+    @User() user: ISanitizedUser,
+    @Body() dto: VerifyUpdateUserOtpDto,
+  ) {
+    const result = await this.userUpdateOtpService.verifyAndApplyUpdate(user.id, dto.otp);
+    return {
+      statusCode: 200,
+      message: result.message,
+      data: result.data,
+    };
+  }
+
+  // ============ End OTP-protected update ============
 
   @Patch('role/:id')
   @ApiOperation({ summary: 'Update a user\'s role' })
@@ -89,7 +139,6 @@ export class UsersController implements IUsersController {
     const result = await this.usersService.updateAvatarOrBG(id, imgProfile, updateUserAvatarOrBGDto);
     return { statusCode: 200, message: 'User avatar updated successfully', data: result };
   }
-
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a user' })

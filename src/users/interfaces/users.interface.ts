@@ -2,6 +2,8 @@ import { IApiResponse } from "@/common/interceptors/transform.interceptor";
 import { UserImageType } from "@/users/enums/UserImageType.enum";
 import { GetUsersQueryDto } from "@/users/dto/GetUsersQueryDto.dto";
 import { PaginatedResult } from "@/common/pagination/pagination.interface";
+import { ISanitizedUser } from "@/auth/interfaces/auth.interface";
+import { RequestUpdateUserOtpDto, VerifyUpdateUserOtpDto } from "@/users/dto/update-user.dto";
 
 // Interface DTO
 export interface ICreateUserDto {
@@ -41,12 +43,21 @@ export interface IUserEntityWithPassword extends IUserEntity {
     password: string | null;
 }
 
+export interface IRequestUpdateOtpApiResponse {
+    statusCode: number;
+    message: string;
+    skipOtp: boolean;
+    data: IUserEntity | { targetEmail: string; changes: string[] };
+}
+
 // Interface Controller
 export interface IUsersController {
     create(createUserDto: ICreateUserDto): Promise<IApiResponse<IUserEntity>>;
     findAll(query: GetUsersQueryDto): Promise<IApiResponse<PaginatedResult<IUserEntity>>>;
     findOne(id: string): Promise<IApiResponse<IUserEntity>>;
     update(id: string, updateUserDto: IUpdateUserDto): Promise<IApiResponse<IUserEntity>>;
+    requestUpdateOtp(user: ISanitizedUser, dto: RequestUpdateUserOtpDto): Promise<IRequestUpdateOtpApiResponse>;
+    verifyUpdateOtp(user: ISanitizedUser, dto: VerifyUpdateUserOtpDto): Promise<IApiResponse<IUserEntity>>;
     updateRole(id: string, updateUserRoleDto: IUpdateUserRoleDto): Promise<IApiResponse<IUserEntity>>;
     updateAvatarOrBG(id: string, file: Express.Multer.File, updateUserAvatarOrBGDto: IUpdateUserAvatarOrBGDto): Promise<IApiResponse<IUserEntity>>;
     remove(id: string): Promise<IApiResponse<IUserEntity>>;
