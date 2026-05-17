@@ -28,8 +28,8 @@ export class OtpService implements IOtpService {
         if (!this.otpExpire || this.otpExpire.trim() === '') {
             throw new Error('OTP_EXPIRE is not defined in environment variables');
         }
-        if (!this.otpLength || !Number.isInteger(this.otpLength) || this.otpLength < 4) {
-            throw new Error('OTP_LENGTH is not defined or must be an integer >= 4');
+        if (!this.otpLength || !Number.isInteger(this.otpLength) || this.otpLength < 6) {
+            throw new Error('OTP_LENGTH is not defined or must be an integer >= 6');
         }
         if (!this.otpMaxAttempts || !Number.isInteger(this.otpMaxAttempts) || this.otpMaxAttempts <= 0) {
             throw new Error('OTP_MAX_ATTEMPTS is not defined or must be a positive integer in environment variables');
