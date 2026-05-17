@@ -63,6 +63,27 @@ export class EmailService {
         this.logger.log(`OTP email sent successfully: ${info.messageId}`);
     }
 
+    async sendUpdateProfileOtp(email: string, userName: string, otp: string, expireText: string, changes: string[]): Promise<void> {
+        const templatePath = path.join(process.cwd(), 'src', 'email', 'templates', 'update-profile-otp.ejs');
+        const html = await ejs.renderFile(templatePath, {
+            appName: this.appName,
+            supportEmail: this.supportEmail,
+            userName,
+            otp,
+            expireText,
+            changes,
+        });
+
+        const info = await this.transporter.sendMail({
+            from: this.fromEmail,
+            to: email,
+            subject: `${this.appName} - Verify Your Profile Update`,
+            html,
+        });
+
+        this.logger.log(`Update profile OTP email sent successfully: ${info.messageId}`);
+    }
+
     async sendTestEmail(toEmail: string): Promise<void> {
         const templatePath = path.join(process.cwd(), 'src', 'email', 'templates', 'test-email.ejs');
         const html = await ejs.renderFile(templatePath, {
