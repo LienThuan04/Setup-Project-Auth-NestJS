@@ -1,10 +1,11 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UploadedFile, UseInterceptors, Query } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { UsersService } from '@/users/users.service';
 import { CreateUserDto } from '@/users/dto/create-user.dto';
 import { UpdateUserAvatarOrBGDto, UpdateUserDto, UpdateUserRoleDto, RequestUpdateUserOtpDto, VerifyUpdateUserOtpDto } from '@/users/dto/update-user.dto';
 import { ApiBody, ApiConsumes, ApiOperation } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ValidationException } from '@/common/exceptions/app.exception';
+import { ForbiddenException, ValidationException } from '@/common/exceptions/app.exception';
 import { AdminOnly, SkipAdminOnly } from '@/common/decorators/metadata';
 import { User } from '@/common/decorators/user.decorator';
 import { UserImageType } from '@/users/enums/UserImageType.enum';
@@ -13,13 +14,22 @@ import { GetUsersQueryDto } from '@/users/dto/GetUsersQueryDto.dto';
 import { UserUpdateOtpService } from '@/auth/services/user-update-otp.service';
 import type { ISanitizedUser } from '@/auth/interfaces/auth.interface';
 
-@AdminOnly() // Mark the entire controller as admin-only, meaning all routes in this controller require admin privileges to access.
+@AdminOnly()
 @Controller('users')
 export class UsersController implements IUsersController {
   constructor(
     private readonly usersService: UsersService,
     private readonly userUpdateOtpService: UserUpdateOtpService,
+    private readonly configService: ConfigService,
   ) { }
+
+  // method this helps to check if the current user is admin or is modifying their own profile, used in OTP-protected update endpoints
+  private assertSelfOrAdmin(currentUser: ISanitizedUser, targetId: string): void {
+    const adminRole = this.configService.get<string>('NAME_ROLE_ADMIN');
+    if (currentUser.roleName !== adminRole && currentUser.id !== targetId) {
+      throw new ForbiddenException('You can only modify your own profile');
+    }
+  }
 
   @Post()
   @ApiOperation({ summary: 'Create a new user' })
@@ -100,6 +110,7 @@ export class UsersController implements IUsersController {
     return { statusCode: 200, message: 'User role updated successfully', data: result };
   }
 
+  @SkipAdminOnly()
   @Patch('avatarorbg/:id')
   @ApiOperation({ summary: 'Update a user\'s avatar or background' })
   @ApiConsumes('multipart/form-data')
@@ -120,7 +131,8 @@ export class UsersController implements IUsersController {
     },
   })
   @UseInterceptors(FileInterceptor('imgProfile')) // Tên trường file trong form-data phải trùng với tên này
-  async updateAvatarOrBG(@Param('id') id: string, @UploadedFile() imgProfile: Express.Multer.File, @Body() updateUserAvatarOrBGDto: UpdateUserAvatarOrBGDto) {
+  async updateAvatarOrBG(@Param('id') id: string, @User() user: ISanitizedUser, @UploadedFile() imgProfile: Express.Multer.File, @Body() updateUserAvatarOrBGDto: UpdateUserAvatarOrBGDto) {
+    this.assertSelfOrAdmin(user, id); // Chỉ cho phép admin hoặc chính chủ cập nhật avatar/bg
     const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/jpg'];
     const maxSizeInBytes = 10 * 1024 * 1024; // 10MB
     if (!imgProfile) {

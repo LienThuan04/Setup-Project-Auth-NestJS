@@ -134,7 +134,7 @@ export class AuthController implements IAuthController {
     async logout(@Res({ passthrough: true }) res: Response, @Req() req: Request, @User() user: ISanitizedUser) {
         const oldCookieRefreshToken = req.cookies[this.refreshTokenName];
         if (!oldCookieRefreshToken) {
-            throw new NotFoundException('Refresh token is missing in cookies');
+            throw new UnauthorizedException('Refresh token is missing in cookies');
         }
         const result: boolean = await this.authService.logout(user, oldCookieRefreshToken, res);
         return {

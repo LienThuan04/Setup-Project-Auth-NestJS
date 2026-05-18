@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { CreateUserDto } from '@/users/dto/create-user.dto';
 import { UpdateUserAvatarOrBGDto, UpdateUserDto } from '@/users/dto/update-user.dto';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -7,12 +7,13 @@ import { ConfigService } from '@nestjs/config';
 import { ensurePasswordHash } from '@/lib/bcrypt/bcrypt';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { FilesService } from '@/files/files.service';
-import { ConflictException, InternalServerException, NotFoundException, ValidationException } from '@/common/exceptions/app.exception';
+import { ConflictException, InternalServerException, NotFoundException, ValidationException, AppException } from '@/common/exceptions/app.exception';
 import { UserImageType } from '@/users/enums/UserImageType.enum';
 import { IUsersService } from '@/users/interfaces/users.interface';
 import { toUserEntity } from '@/users/helpers/toUserEntity.helper';
 import { GetUsersQueryDto } from './dto/GetUsersQueryDto.dto';
 import { buildPaginationMeta, getPaginationParams } from '@/common/pagination/pagination.helper';
+import { ISanitizedUser } from '@/auth/interfaces/auth.interface';
 
 @Injectable()
 export class UsersService implements IUsersService {
@@ -47,7 +48,8 @@ export class UsersService implements IUsersService {
 
   // can tra ve pass de validate trong auth service
   async searchUserByEmailOrUsernameOrId(emailOrUserNameOrId: string) {
-    const user = await this.prisma.user.findFirst({
+    try {
+      const user = await this.prisma.user.findFirst({
       where: {
         OR: [
           { email: emailOrUserNameOrId },
@@ -60,6 +62,10 @@ export class UsersService implements IUsersService {
     if (!user) return null;
     const { role, ...userData } = user || {}; // destructure to separate role from user data
     return { ...userData, roleName: user?.role?.roleName };
+    } catch (error: any) {
+      if( error instanceof AppException) throw error;
+      throw new InternalServerException(error.message);
+    }
   }
 
   async create(createUserDto: CreateUserDto) {
@@ -92,7 +98,7 @@ export class UsersService implements IUsersService {
       if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException(`Error creating user: ${error.message}`);
       }
-      if (error instanceof ConflictException) {
+      if (error instanceof AppException) {
         throw error;
       }
       throw new InternalServerException(`Failed to create user: ${error.message}`);
@@ -133,6 +139,9 @@ export class UsersService implements IUsersService {
       if (error instanceof PrismaClientKnownRequestError && error.code === 'P2025') {
         throw new NotFoundException('Database error: ' + error.message);
       }
+      if (error instanceof AppException) {
+        throw error;
+      }
       throw new InternalServerException(error.message);
     }
   }
@@ -148,6 +157,9 @@ export class UsersService implements IUsersService {
       }
       return toUserEntity(user);
     } catch (error: any) {
+      if (error instanceof AppException) {
+        throw error;
+      }
       throw new InternalServerException(error.message);
     }
   }
@@ -193,6 +205,9 @@ export class UsersService implements IUsersService {
       });
       return toUserEntity(updatedUser);
     } catch (error: any) {
+      if (error instanceof AppException) {
+        throw error;
+      }
       throw new InternalServerException(error.message);
     }
   }
@@ -217,6 +232,9 @@ export class UsersService implements IUsersService {
       });
       return toUserEntity(updatedUser);
     } catch (error: any) {
+      if (error instanceof AppException) {
+        throw error;
+      }
       throw new InternalServerException(error.message);
     }
   }
@@ -235,6 +253,9 @@ export class UsersService implements IUsersService {
       });
       return toUserEntity(user);
     } catch (error: any) {
+      if (error instanceof AppException) {
+        throw error;
+      }
       throw new InternalServerException(error.message);
     }
   }
@@ -262,6 +283,9 @@ export class UsersService implements IUsersService {
 
     } catch (error: any) {
       console.error('Error updating user avatar:', error);
+      if (error instanceof AppException) {
+        throw error;
+      }
       throw new InternalServerException(error.message);
     }
   }

@@ -59,7 +59,7 @@ export interface IUsersController {
     requestUpdateOtp(user: ISanitizedUser, dto: RequestUpdateUserOtpDto): Promise<IRequestUpdateOtpApiResponse>;
     verifyUpdateOtp(user: ISanitizedUser, dto: VerifyUpdateUserOtpDto): Promise<IApiResponse<IUserEntity>>;
     updateRole(id: string, updateUserRoleDto: IUpdateUserRoleDto): Promise<IApiResponse<IUserEntity>>;
-    updateAvatarOrBG(id: string, file: Express.Multer.File, updateUserAvatarOrBGDto: IUpdateUserAvatarOrBGDto): Promise<IApiResponse<IUserEntity>>;
+    updateAvatarOrBG(id: string, currentUser: ISanitizedUser, file: Express.Multer.File, updateUserAvatarOrBGDto: IUpdateUserAvatarOrBGDto): Promise<IApiResponse<IUserEntity>>;
     remove(id: string): Promise<IApiResponse<IUserEntity>>;
 }
 
