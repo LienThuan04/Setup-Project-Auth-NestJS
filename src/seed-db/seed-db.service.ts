@@ -63,11 +63,11 @@ export class SeedDbService implements OnModuleInit {
                 throw new Error('One or more required roles not found. Please ensure the roles are seeded before seeding users.');
             }
             const LIST_USERS = await Promise.all(users.map(async user => ({
-                ...user,
-                password: await generatePasswordHash(user.password ? user.password : this.configService.get<string>('DEFAULT_PASSWORD')!, saltRounds), // Hash password nếu có
-                roleId: user.userName === 'Admin' ? ID_ROLE_ADMIN.id : ID_ROLE_USER.id // Gán roleId dựa trên userName
-                })
-            ));
+                email: user.email,
+                userName: user.userName,
+                password: await generatePasswordHash(user.password || this.configService.get<string>('DEFAULT_PASSWORD')!, saltRounds),
+                roleId: user.roleName === (this.configService.get<string>('NAME_ROLE_ADMIN') || 'ADMIN') ? ID_ROLE_ADMIN.id : ID_ROLE_USER.id,
+            })));
             const result = await this.prisma.user.createMany({
                 data: LIST_USERS,
                 skipDuplicates: true, // Bỏ qua nếu trùng
@@ -102,6 +102,7 @@ export class SeedDbService implements OnModuleInit {
         try {
             await this.filesService.clearBucketStorage();
             await this.prisma.pendingRegistration.deleteMany();
+            await this.prisma.pendingUserUpdate.deleteMany();
             await this.prisma.session.deleteMany();
             await this.prisma.file.deleteMany();
             await this.prisma.user.deleteMany();
