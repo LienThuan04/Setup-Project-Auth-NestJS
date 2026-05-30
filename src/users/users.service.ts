@@ -11,9 +11,8 @@ import { ConflictException, InternalServerException, NotFoundException, Validati
 import { UserImageType } from '@/users/enums/UserImageType.enum';
 import { IUsersService } from '@/users/interfaces/users.interface';
 import { toUserEntity } from '@/users/helpers/toUserEntity.helper';
-import { GetUsersQueryDto } from './dto/GetUsersQueryDto.dto';
+import { GetUsersQueryDto } from '@/users/dto/GetUsersQueryDto.dto';
 import { buildPaginationMeta, getPaginationParams } from '@/common/pagination/pagination.helper';
-import { ISanitizedUser } from '@/auth/interfaces/auth.interface';
 
 @Injectable()
 export class UsersService implements IUsersService {

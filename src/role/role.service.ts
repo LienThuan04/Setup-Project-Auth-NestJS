@@ -8,7 +8,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { InternalServerException, NotFoundException, ConflictException, ValidationException } from '@/common/exceptions/app.exception';
 import { IRoleService } from '@/role/interfaces/role.interface';
 import { buildPaginationMeta, getPaginationParams } from '@/common/pagination/pagination.helper';
-import { GetRolesQueryDto } from './dto/GetRolesQueryDto.dto';
+import { GetRolesQueryDto } from '@/role/dto/GetRolesQueryDto.dto';
 
 @Injectable()
 export class RoleService implements IRoleService {

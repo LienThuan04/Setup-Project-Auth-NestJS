@@ -1,6 +1,6 @@
 import { IApiResponse } from "@/common/interceptors/transform.interceptor";
 import { PaginatedResult } from "@/common/pagination/pagination.interface";
-import { GetRolesQueryDto } from "../dto/GetRolesQueryDto.dto";
+import { GetRolesQueryDto } from "@/role/dto/GetRolesQueryDto.dto";
 
 export interface ICreateRoleDto {
     roleName: string;

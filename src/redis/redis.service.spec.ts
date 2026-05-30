@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { RedisService } from './redis.service';
+import { RedisService } from '@/redis/redis.service';
 import { ConfigService } from '@nestjs/config';
 import 'dotenv/config';
 

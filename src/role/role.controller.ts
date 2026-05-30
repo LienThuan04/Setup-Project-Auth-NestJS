@@ -7,7 +7,7 @@ import { RoleEntity } from '@/role/entities/role.entity';
 import { IApiResponse } from '@/common/interceptors/transform.interceptor';
 import { AdminOnly } from '@/common/decorators/metadata';
 import { IRoleController } from '@/role/interfaces/role.interface';
-import { GetRolesQueryDto } from './dto/GetRolesQueryDto.dto';
+import { GetRolesQueryDto } from '@/role/dto/GetRolesQueryDto.dto';
 
 @AdminOnly()
 @Controller('role')

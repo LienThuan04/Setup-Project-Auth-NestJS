@@ -1,8 +1,8 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import { EmailService } from './email.service';
+import { EmailService } from '@/email/email.service';
 import { Public } from '@/common/decorators/metadata';
 import { ApiOperation } from '@nestjs/swagger';
-import { SendEmailDto, TestSendRegisterOtpDto } from './dto/create-email.dto';
+import { SendEmailDto, TestSendRegisterOtpDto } from '@/email/dto/create-email.dto';
 import { IApiResponse } from '@/common/interceptors/transform.interceptor';
 
 @Controller('email')
