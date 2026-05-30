@@ -13,6 +13,7 @@ import { IUsersController } from '@/users/interfaces/users.interface';
 import { GetUsersQueryDto } from '@/users/dto/GetUsersQueryDto.dto';
 import { UserUpdateOtpService } from '@/auth/services/user-update-otp.service';
 import type { ISanitizedUser } from '@/auth/interfaces/auth.interface';
+import { UserEntity } from '@/users/entities/user.entity';
 
 @AdminOnly()
 @Controller('users')

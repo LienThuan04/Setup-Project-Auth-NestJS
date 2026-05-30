@@ -4,6 +4,7 @@ import { GetUsersQueryDto } from "@/users/dto/GetUsersQueryDto.dto";
 import { PaginatedResult } from "@/common/pagination/pagination.interface";
 import { ISanitizedUser } from "@/auth/interfaces/auth.interface";
 import { RequestUpdateUserOtpDto, VerifyUpdateUserOtpDto } from "@/users/dto/update-user.dto";
+import { UserEntity } from "@/users/entities/user.entity";
 
 // Interface DTO
 export interface ICreateUserDto {

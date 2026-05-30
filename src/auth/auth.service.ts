@@ -7,7 +7,7 @@ import { RegisterDto, VerifyRegisterOtpDto, ResendRegisterOtpDto, VerifyEmailDto
 import type { GoogleUser } from '@/auth/passport/google/google-user.interface';
 import { comparePassword } from '@/lib/bcrypt/bcrypt';
 import type { Response } from 'express';
-import { ConflictException, InternalServerException, NotFoundException, ValidationException } from '@/common/exceptions/app.exception';
+import { AppException, ConflictException, InternalServerException, NotFoundException, UnauthorizedException, ValidationException } from '@/common/exceptions/app.exception';
 import { TokenService } from '@/auth/services/token.service';
 import { GoogleService } from '@/auth/services/google.service';
 import { PasswordService } from '@/auth/services/password.service';
@@ -45,7 +45,7 @@ export class AuthService implements IAuthService {
 
     async registerWithOTP(registerDto: RegisterDto) {
         try {
-            return this.registerService.register(registerDto);
+            return await this.registerService.register(registerDto);
         } catch (error: any) {
             if (error instanceof ConflictException) {
                 throw error;
@@ -56,7 +56,7 @@ export class AuthService implements IAuthService {
 
     async verifyRegisterOtp(verifyRegisterOtpDto: VerifyRegisterOtpDto) {
         try {
-            return this.registerService.verifyOtp(verifyRegisterOtpDto);
+            return await this.registerService.verifyOtp(verifyRegisterOtpDto);
         } catch (error: any) {
             if (error instanceof ConflictException || error instanceof NotFoundException) {
                 throw error;
@@ -67,7 +67,7 @@ export class AuthService implements IAuthService {
 
     async resendRegisterOtp(resendRegisterOtpDto: ResendRegisterOtpDto) {
         try {
-            return this.registerService.resendOtp(resendRegisterOtpDto.email);
+            return await this.registerService.resendOtp(resendRegisterOtpDto.email);
         } catch (error) {
             if (error instanceof ConflictException) {
                 throw error;
@@ -78,7 +78,7 @@ export class AuthService implements IAuthService {
 
     async sendChangePasswordOtp(verifyEmailDto: VerifyEmailDto) {
         try {
-            return this.passwordService.sendOtp(verifyEmailDto);
+            return await this.passwordService.sendOtp(verifyEmailDto);
         } catch (error: any) {
             if (error instanceof ConflictException || error instanceof ValidationException) {
                 throw error;
@@ -89,7 +89,7 @@ export class AuthService implements IAuthService {
 
     async verifyChangePasswordOtp(changePasswordVerifyDto: ChangePasswordVerifyDto) {
         try {
-            return this.passwordService.verifyAndChange(changePasswordVerifyDto);
+            return await this.passwordService.verifyAndChange(changePasswordVerifyDto);
         } catch (error: any) {
             if (error instanceof ConflictException ||
                 error instanceof NotFoundException ||
@@ -120,7 +120,7 @@ export class AuthService implements IAuthService {
 
     async login(user: ISanitizedUser, res: Response, deviceId: string) {
         try {
-            return this.tokenService.login(user, res, deviceId);
+            return await this.tokenService.login(user, res, deviceId);
         } catch (error: any) {
             throw new InternalServerException(`Failed to login user: ${error.message}`);
         }
@@ -132,7 +132,7 @@ export class AuthService implements IAuthService {
                 throw new ValidationException('Refresh token is missing !');
             }
             const decodedRefreshToken = this.jwtService.verify(oldCookieRefreshToken, { secret: this.refreshTokenSecret });
-            if (!decodedRefreshToken || typeof decodedRefreshToken === 'string' || !decodedRefreshToken.userId || 
+            if (!decodedRefreshToken || typeof decodedRefreshToken === 'string' || !decodedRefreshToken.userId ||
                 !decodedRefreshToken._sub || !decodedRefreshToken.deviceId || typeof decodedRefreshToken.userId !== 'string' ||
                 typeof decodedRefreshToken._sub !== 'object' || typeof decodedRefreshToken._sub.email !== 'string' ||
                 typeof decodedRefreshToken._sub.roleName !== 'string' || typeof decodedRefreshToken.deviceId !== 'string'
@@ -153,6 +153,9 @@ export class AuthService implements IAuthService {
             res.clearCookie(this.refreshTokenName); // Clear old refresh token cookie
             return await this.login(userFetch as ISanitizedUser, res, decodedRefreshToken.deviceId); // Reuse login logic to generate new tokens and set cookie
         } catch (error: any) {
+            if (error instanceof AppException) throw error;
+            if (error?.name === 'TokenExpiredError') throw new UnauthorizedException('Refresh token has expired');
+            if (error?.name === 'JsonWebTokenError') throw new UnauthorizedException('Invalid refresh token');
             throw new InternalServerException(`Failed to refresh token: ${error.message}`);
         }
     }
@@ -160,7 +163,7 @@ export class AuthService implements IAuthService {
     // Google login flow:
     async googleLogin(googleUser: GoogleUser, res: Response, deviceId: string) {
         try {
-            return this.googleService.login(googleUser, res, deviceId);
+            return await this.googleService.login(googleUser, res, deviceId);
         } catch (error) {
             throw new InternalServerException(`Failed to login with Google: ${(error as Error).message}`);
         }
@@ -168,7 +171,7 @@ export class AuthService implements IAuthService {
 
     async logout(user: ISanitizedUser, oldCookieRefreshToken: string, res: Response) {
         try {
-            return this.tokenService.logout(user.id, oldCookieRefreshToken, res);
+            return await this.tokenService.logout(user.id, oldCookieRefreshToken, res);
         } catch (error: any) {
             throw new InternalServerException(`Failed to logout user: ${error.message}`);
         }
@@ -176,7 +179,7 @@ export class AuthService implements IAuthService {
 
     async logoutAll(user: ISanitizedUser, res: Response) {
         try {
-            return this.tokenService.logoutAll(user.id, res);
+            return await this.tokenService.logoutAll(user.id, res);
         } catch (error: any) {
             throw new InternalServerException(`Failed to logout user from all sessions: ${error.message}`);
         }

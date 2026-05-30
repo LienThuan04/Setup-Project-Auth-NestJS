@@ -13,6 +13,7 @@ import { IUsersService } from '@/users/interfaces/users.interface';
 import { toUserEntity } from '@/users/helpers/toUserEntity.helper';
 import { GetUsersQueryDto } from '@/users/dto/GetUsersQueryDto.dto';
 import { buildPaginationMeta, getPaginationParams } from '@/common/pagination/pagination.helper';
+import { UserEntity } from '@/users/entities/user.entity';
 
 @Injectable()
 export class UsersService implements IUsersService {
