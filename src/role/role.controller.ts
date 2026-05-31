@@ -6,7 +6,7 @@ import { UpdateRoleDto } from '@/role/dto/update-role.dto';
 import { RoleEntity } from '@/role/entities/role.entity';
 import { IApiResponse } from '@/common/interceptors/transform.interceptor';
 import { AdminOnly } from '@/common/decorators/metadata';
-import { IRoleController } from '@/role/interfaces/role.interface';
+import type { IRoleController } from '@/role/interfaces/role.controller.interface';
 import { GetRolesQueryDto } from '@/role/dto/GetRolesQueryDto.dto';
 
 @AdminOnly()

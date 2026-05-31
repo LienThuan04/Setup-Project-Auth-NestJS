@@ -1,6 +1,6 @@
 import { Controller } from '@nestjs/common';
 import { SessionService } from '@/session/session.service';
-import { ISessionController } from '@/session/interfaces/session.interface';
+import type { ISessionController } from '@/session/interfaces/session.controller.interface';
 
 @Controller('session')
 export class SessionController implements ISessionController {

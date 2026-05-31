@@ -4,7 +4,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import ms from 'ms';
 import { SessionEntity } from '@/session/entities/session.entity';
-import { ISessionService } from '@/session/interfaces/session.interface';
+import type { ISessionService } from '@/session/interfaces/session.service.interface';
 
 @Injectable()
 export class SessionService implements ISessionService {

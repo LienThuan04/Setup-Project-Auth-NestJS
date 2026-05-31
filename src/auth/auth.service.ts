@@ -12,7 +12,8 @@ import { TokenService } from '@/auth/services/token.service';
 import { GoogleService } from '@/auth/services/google.service';
 import { PasswordService } from '@/auth/services/password.service';
 import { RegisterService } from '@/auth/services/register.service';
-import { IAuthService, ISanitizedUser } from '@/auth/interfaces/auth.interface';
+import type { ISanitizedUser } from '@/auth/interfaces/auth.types';
+import type { IAuthService } from '@/auth/interfaces/auth.service.interface';
 
 @Injectable()
 export class AuthService implements IAuthService {

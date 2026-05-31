@@ -6,7 +6,8 @@ import { GoogleUser } from '@/auth/passport/google/google-user.interface';
 import { ConflictException, NotFoundException } from '@/common/exceptions/app.exception';
 import { AccountType } from '@/common/enums/account-type.enum';
 import { Response } from 'express';
-import { IGoogleService, ISanitizedUser } from '@/auth/interfaces/auth.interface';
+import type { ISanitizedUser } from '@/auth/interfaces/auth.types';
+import type { IGoogleService } from '@/auth/interfaces/auth.service.interface';
 
 @Injectable()
 export class GoogleService implements IGoogleService {

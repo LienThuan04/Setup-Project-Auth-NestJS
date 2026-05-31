@@ -7,7 +7,8 @@ import { comparePassword } from '@/lib/bcrypt/bcrypt';
 import { ConflictException, ValidationException } from '@/common/exceptions/app.exception';
 import { RequestUpdateUserOtpDto } from '@/users/dto/update-user.dto';
 import { toUserEntity } from '@/users/helpers/toUserEntity.helper';
-import type { IUserUpdateOtpService, IUserUpdateOtpRequestResult } from '@/auth/interfaces/auth.interface';
+import type { IUserUpdateOtpService } from '@/auth/interfaces/auth.service.interface';
+import type { IUserUpdateOtpRequestResult } from '@/auth/interfaces/auth.types';
 import ms from 'ms';
 
 @Injectable()

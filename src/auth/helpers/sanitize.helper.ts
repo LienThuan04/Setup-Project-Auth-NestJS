@@ -1,5 +1,5 @@
 // src/auth/helpers/sanitize.helper.ts
-import { ISanitizedUser } from '@/auth/interfaces/auth.interface';
+import type { ISanitizedUser } from '@/auth/interfaces/auth.types';
 
 /** Remove sensitive fields (password, createdAt, ...) before returning to the client */
 export function sanitizeUser(user: ISanitizedUser): ISanitizedUser {

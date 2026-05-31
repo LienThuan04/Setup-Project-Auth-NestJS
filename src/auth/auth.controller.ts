@@ -10,7 +10,8 @@ import { GoogleAuthGuard } from '@/lib/passport/google-auth.guard';
 import { ConfigService } from '@nestjs/config';
 import { ApiOperation } from '@nestjs/swagger';
 import { UnauthorizedException, InternalServerException, NotFoundException } from '@/common/exceptions/app.exception';
-import type { IAuthController, ISanitizedUser } from '@/auth/interfaces/auth.interface';
+import type { ISanitizedUser } from '@/auth/interfaces/auth.types';
+import type { IAuthController } from '@/auth/interfaces/auth.controller.interface';
 
 @Controller('auth')
 export class AuthController implements IAuthController {

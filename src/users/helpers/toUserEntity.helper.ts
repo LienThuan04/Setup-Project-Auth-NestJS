@@ -1,6 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { UserEntity } from '@/users/entities/user.entity';
-import { IUserEntity } from '@/users/interfaces/users.interface';
+import type { IUserEntity } from '@/users/interfaces/users.types';
 
 /** Map Prisma user (with role) to IUserEntity and strip runtime-only fields */
 export function toUserEntity(user: { role?: { roleName: string } }): IUserEntity {

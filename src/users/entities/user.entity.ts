@@ -1,5 +1,5 @@
 import { Exclude, Type } from 'class-transformer';
-import { IUserEntity } from '@/users/interfaces/users.interface';
+import type { IUserEntity } from '@/users/interfaces/users.types';
 
 export class UserEntity implements IUserEntity {
   id!: string;

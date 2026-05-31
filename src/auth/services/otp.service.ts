@@ -5,7 +5,7 @@ import { comparePassword, generatePasswordHash } from '@/lib/bcrypt/bcrypt';
 import { generateNumericOtp } from '@/common/otp/generate-otp';
 import { ConflictException } from '@/common/exceptions/app.exception';
 import ms from 'ms';
-import { IOtpService } from '@/auth/interfaces/auth.interface';
+import type { IOtpService } from '@/auth/interfaces/auth.service.interface';
 
 @Injectable()
 export class OtpService implements IOtpService {

@@ -6,7 +6,7 @@ import { RoleEntity } from '@/role/entities/role.entity';
 import { PrismaService } from '@/prisma/prisma.service';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { InternalServerException, NotFoundException, ConflictException, ValidationException } from '@/common/exceptions/app.exception';
-import { IRoleService } from '@/role/interfaces/role.interface';
+import type { IRoleService } from '@/role/interfaces/role.service.interface';
 import { buildPaginationMeta, getPaginationParams } from '@/common/pagination/pagination.helper';
 import { GetRolesQueryDto } from '@/role/dto/GetRolesQueryDto.dto';
 

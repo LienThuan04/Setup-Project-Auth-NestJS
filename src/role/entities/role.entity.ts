@@ -1,5 +1,5 @@
 import { Exclude, Type } from 'class-transformer';
-import { IRoleEntity } from '@/role/interfaces/role.interface';
+import type { IRoleEntity } from '@/role/interfaces/role.types';
 
 export class RoleEntity implements IRoleEntity {
   //   @Expose() //if not using excludeExtraneousValues, this is not needed, but it's good practice to be explicit about what should be included in the response

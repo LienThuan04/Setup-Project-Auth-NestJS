@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ISessionEntity } from '@/session/interfaces/session.interface';
+import type { ISessionEntity } from '@/session/interfaces/session.types';
 
 export class SessionEntity implements ISessionEntity {
   id!: string;

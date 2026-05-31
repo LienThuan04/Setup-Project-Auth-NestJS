@@ -9,10 +9,10 @@ import { ForbiddenException, ValidationException } from '@/common/exceptions/app
 import { AdminOnly, SkipAdminOnly } from '@/common/decorators/metadata';
 import { User } from '@/common/decorators/user.decorator';
 import { UserImageType } from '@/users/enums/UserImageType.enum';
-import { IUsersController } from '@/users/interfaces/users.interface';
+import type { IUsersController } from '@/users/interfaces/users.controller.interface';
 import { GetUsersQueryDto } from '@/users/dto/GetUsersQueryDto.dto';
 import { UserUpdateOtpService } from '@/auth/services/user-update-otp.service';
-import type { ISanitizedUser } from '@/auth/interfaces/auth.interface';
+import type { ISanitizedUser } from '@/auth/interfaces/auth.types';
 import { UserEntity } from '@/users/entities/user.entity';
 
 @AdminOnly()

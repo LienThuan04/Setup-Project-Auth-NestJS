@@ -8,7 +8,8 @@ import { generatePasswordHash } from '@/lib/bcrypt/bcrypt';
 import { ConflictException, NotFoundException, ValidationException } from '@/common/exceptions/app.exception';
 import { AccountType } from '@/common/enums/account-type.enum';
 import { OtpService } from '@/auth/services/otp.service';
-import { IRegisterService, ISanitizedUser } from '@/auth/interfaces/auth.interface';
+import type { ISanitizedUser } from '@/auth/interfaces/auth.types';
+import type { IRegisterService } from '@/auth/interfaces/auth.service.interface';
 import { sanitizeUser } from '@/auth/helpers/sanitize.helper';
 
 @Injectable()

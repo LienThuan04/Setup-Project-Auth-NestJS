@@ -9,7 +9,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
 import { FilesService } from '@/files/files.service';
 import { ConflictException, InternalServerException, NotFoundException, ValidationException, AppException } from '@/common/exceptions/app.exception';
 import { UserImageType } from '@/users/enums/UserImageType.enum';
-import { IUsersService } from '@/users/interfaces/users.interface';
+import type { IUsersService } from '@/users/interfaces/users.service.interface';
 import { toUserEntity } from '@/users/helpers/toUserEntity.helper';
 import { GetUsersQueryDto } from '@/users/dto/GetUsersQueryDto.dto';
 import { buildPaginationMeta, getPaginationParams } from '@/common/pagination/pagination.helper';
