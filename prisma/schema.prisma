@@ -9,150 +9,45 @@ datasource db {
   provider = "postgresql"
 }
 
-enum AccountType {
-  LOCAL
-  GOOGLE
-}
-
-enum SpaceTopic {
-  GAME
-  ANIME
-  SPORT
-  TECH
-  MUSIC
-  ART
-  SCIENCE
-  LIFESTYLE
-  OTHER
-}
-
-enum MemberRole {
-  OWNER
-  MODERATOR
-  MEMBER
-}
-
-enum VoteType {
-  UP
-  DOWN
-}
-
-enum PostStatus {
-  PUBLISHED
-  REMOVED
-  ARCHIVED
-}
-
-enum CommentStatus {
-  VISIBLE
-  REMOVED
-}
-
-enum NotificationType {
-  POST_VOTE
-  POST_COMMENT
-  COMMENT_REPLY
-  COMMENT_VOTE
-  NEW_FOLLOWER
-  SPACE_INVITE
-  SPACE_SUMMARY
-  MOD_ACTION
-  SYSTEM
-}
-
-enum ReportReason {
-  SPAM
-  HATE_SPEECH
-  HARASSMENT
-  NSFW
-  MISINFORMATION
-  OTHER
-}
-
-enum ReportStatus {
-  PENDING
-  REVIEWED
-  RESOLVED
-  DISMISSED
-}
-
-enum ModerationResult {
-  SAFE
-  FLAGGED
-  BLOCKED
-}
-
-enum InviteStatus {
-  PENDING
-  ACCEPTED
-  DECLINED
-  EXPIRED
-}
-
-// Example models
-
 model User {
-  id    String @id @default(uuid())
-  email String @unique
-  userName  String @unique
-  googleId String? @unique
-  accountType String @default("local")
-  avatarUrl String?
+  id            String    @id @default(uuid())
+  email         String    @unique
+  userName      String    @unique
+  googleId      String?   @unique
+  accountType   String    @default("local")
+  avatarUrl     String?
   backgroundUrl String?
-  description String?
-  password String?
-  roleId String
-  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  sessions Session[]
-  files File[]
-  // Spaces
-  ownedSpaces     Space[]       @relation("SpaceOwner")
-  spaceMembers    SpaceMember[]
-  invitesSent     SpaceInvite[] @relation("InviteSender")
-  invitesReceived SpaceInvite[] @relation("InviteReceiver")
-  // Content
-  posts           Post[]
-  comments        Comment[]
-  postVotes       PostVote[]
-  commentVotes    CommentVote[]
-  bookmarks       Bookmark[]
-  // Follow
-  followers       Follow[] @relation("Following")
-  following       Follow[] @relation("Follower")
-  // Notification
-  notifications   Notification[]
-  // Reports
-  reportsFiled    Report[] @relation("ReportedBy")
-  reportsResolved Report[] @relation("ResolvedBy")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  description   String?
+  password      String?
+  roleId        String
+  role          Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  sessions      Session[]
+  files         File[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 model Role {
-  id    String     @id @default(uuid())
-  roleName  String  @unique
+  id          String   @id @default(uuid())
+  roleName    String   @unique
   description String?
-  users User[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model File {
-  id          String   @id @default(uuid())
-  fileName    String
+  id           String   @id @default(uuid())
+  fileName     String
   originalName String
-  path        String   @unique
-  mimeType    String
-  size        Int?
-  bucket      String
-
-  userId      String?
-  user        User? @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  postMedia     PostMedia[]
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  path         String   @unique
+  mimeType     String
+  size         Int?
+  bucket       String
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Session {
@@ -165,470 +60,33 @@ model Session {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  @@unique([userId, deviceId]) // Composite unique constraint to ensure one session per device per user
-  @@index([deviceId]) // Index for faster lookups by deviceId
+  @@unique([userId, deviceId])
+  @@index([deviceId])
 }
 
-model PendingRegistration { 
-  id           String   @id @default(uuid())
-  email        String   @unique
-  userName     String   @unique
+model PendingRegistration {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  userName     String    @unique
   passwordHash String
   otpHash      String
   otpExpiresAt DateTime
-  attemptCount Int      @default(0)
+  attemptCount Int       @default(0)
   resendAfter  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 model PendingUserUpdate {
-  id            String   @id @default(uuid())
-  userId        String   @unique // Một user chỉ có 1 pending update tại 1 thời điểm
-  newEmail      String?  // Email mới (nếu có thay đổi)
-  newUserName   String?  // Username mới (nếu có thay đổi)
-  newDescription String? // Description mới (nếu có thay đổi)
-  otpHash       String
-  otpExpiresAt  DateTime
-  attemptCount  Int      @default(0)
-  resendAfter   DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
-// ═══════════════════════════════════════════════════════════════
-// SPACES
-// ═══════════════════════════════════════════════════════════════
-
-model Space {
-  id            String @id @default(uuid())
-
-  slug          String @unique
-  name          String
-
-  description   String? @db.Text
-
-  topic         SpaceTopic
-
-  avatarUrl     String?
-  bannerUrl     String?
-
-  isPrivate     Boolean @default(false)
-  isVerified    Boolean @default(false)
-
-  ownerId       String
-  owner         User @relation("SpaceOwner", fields: [ownerId], references: [id])
-
-  memberCount   Int @default(0)
-  postCount     Int @default(0)
-
-  members       SpaceMember[]
-  posts         Post[]
-
-  invites       SpaceInvite[]
-
-  rules         SpaceRule[]
-
-  summaries     AiSummary[]
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([topic])
-  @@index([memberCount])
-  @@index([createdAt])
-}
-
-model SpaceRule {
-  id            String @id @default(uuid())
-
-  spaceId       String
-  space         Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-
-  title         String
-  description   String? @db.Text
-
-  order         Int @default(0)
-
-  createdAt     DateTime @default(now())
-
-  @@index([spaceId])
-}
-
-model SpaceMember {
-  userId        String
-  spaceId       String
-
-  role          MemberRole @default(MEMBER)
-
-  mask          String
-  maskColor     String?
-
-  isBanned      Boolean @default(false)
-
-  bannedAt      DateTime?
-  banReason     String?
-  banExpiresAt  DateTime?
-
-  user          User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  space         Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-
-  joinedAt      DateTime @default(now())
-
-  @@id([userId, spaceId])
-
-  @@unique([spaceId, mask])
-
-  @@index([spaceId])
-  @@index([userId])
-}
-
-model SpaceInvite {
-  id            String @id @default(uuid())
-
-  spaceId       String
-  space         Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-
-  senderId      String
-  sender        User @relation("InviteSender", fields: [senderId], references: [id], onDelete: Cascade)
-
-  receiverId    String
-  receiver      User @relation("InviteReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
-
-  status        InviteStatus @default(PENDING)
-
-  expiresAt     DateTime
-
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@unique([spaceId, receiverId])
-
-  @@index([receiverId])
-}
-
-// ═══════════════════════════════════════════════════════════════
-// POSTS
-// ═══════════════════════════════════════════════════════════════
-
-model Post {
-  id              String @id @default(uuid())
-
-  title           String
-  content         String @db.Text
-
-  status          PostStatus @default(PUBLISHED)
-
-  spaceId         String
-  space           Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-
-  authorId        String
-  author          User @relation(fields: [authorId], references: [id], onDelete: Restrict)
-
-  upvoteCount     Int @default(0)
-  downvoteCount   Int @default(0)
-
-  commentCount    Int @default(0)
-
-  score           Int @default(0)
-
-  isPinned        Boolean @default(false)
-
-  removedReason   String?
-
-  removedById     String?
-  removedAt       DateTime?
-
-  media           PostMedia[]
-
-  votes           PostVote[]
-  comments        Comment[]
-
-  bookmarks       Bookmark[]
-
-  tags            PostTag[]
-
-  reports         Report[]
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([spaceId, status, createdAt])
-  @@index([spaceId, status, score])
-
-  @@index([authorId])
-  @@index([createdAt])
-}
-
-model PostMedia {
-  postId          String
-  fileId          String
-
-  post            Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  file            File @relation(fields: [fileId], references: [id], onDelete: Cascade)
-
-  order           Int @default(0)
-
-  createdAt       DateTime @default(now())
-
-  @@id([postId, fileId])
-
-  @@index([fileId])
-}
-
-model PostVote {
-  userId          String
-  postId          String
-
-  type            VoteType
-
-  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post            Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  createdAt       DateTime @default(now())
-
-  @@id([userId, postId])
-
-  @@index([postId])
-}
-
-// ═══════════════════════════════════════════════════════════════
-// COMMENTS
-// ═══════════════════════════════════════════════════════════════
-
-model Comment {
-  id              String @id @default(uuid())
-
-  content         String @db.Text
-
-  status          CommentStatus @default(VISIBLE)
-
-  postId          String
-  post            Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  authorId        String
-  author          User @relation(fields: [authorId], references: [id], onDelete: Restrict)
-
-  parentId        String?
-
-  parent          Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
-  replies         Comment[] @relation("CommentReplies")
-
-  upvoteCount     Int @default(0)
-  downvoteCount   Int @default(0)
-
-  replyCount      Int @default(0)
-
-  removedReason   String?
-
-  removedById     String?
-  removedAt       DateTime?
-
-  votes           CommentVote[]
-
-  reports         Report[]
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([postId, status])
-
-  @@index([parentId])
-  @@index([authorId])
-
-  @@index([createdAt])
-}
-
-model CommentVote {
-  userId          String
-  commentId       String
-
-  type            VoteType
-
-  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  comment         Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
-
-  createdAt       DateTime @default(now())
-
-  @@id([userId, commentId])
-
-  @@index([commentId])
-}
-
-// ═══════════════════════════════════════════════════════════════
-// TAGS
-// ═══════════════════════════════════════════════════════════════
-
-model Tag {
-  id              String @id @default(uuid())
-
-  name            String @unique
-
-  postCount       Int @default(0)
-
-  posts           PostTag[]
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([name])
-  @@index([postCount])
-}
-
-model PostTag {
-  postId          String
-  tagId           String
-
-  post            Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  tag             Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([postId, tagId])
-
-  @@index([tagId])
-}
-
-// ═══════════════════════════════════════════════════════════════
-// FOLLOW
-// ═══════════════════════════════════════════════════════════════
-
-model Follow {
-  followerId      String
-  followingId     String
-
-  follower        User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
-  following       User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@id([followerId, followingId])
-
-  @@index([followerId])
-  @@index([followingId])
-
-  @@index([createdAt])
-}
-
-// ═══════════════════════════════════════════════════════════════
-// BOOKMARK
-// ═══════════════════════════════════════════════════════════════
-
-model Bookmark {
-  userId          String
-  postId          String
-
-  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post            Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@id([userId, postId])
-
-  @@index([userId])
-}
-
-// ═══════════════════════════════════════════════════════════════
-// NOTIFICATIONS
-// ═══════════════════════════════════════════════════════════════
-
-model Notification {
-  id              String @id @default(uuid())
-
-  userId          String
-  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  type            NotificationType
-
-  title           String
-  body            String?
-
-  isRead          Boolean @default(false)
-
-  metadata        Json?
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([userId, isRead])
-  @@index([userId, createdAt])
-}
-
-// ═══════════════════════════════════════════════════════════════
-// REPORTS
-// ═══════════════════════════════════════════════════════════════
-
-model Report {
-  id              String @id @default(uuid())
-
-  reporterId      String
-  reporter        User @relation("ReportedBy", fields: [reporterId], references: [id], onDelete: Cascade)
-
-  reason          ReportReason
-
-  description     String? @db.Text
-
-  status          ReportStatus @default(PENDING)
-
-  resolvedById    String?
-  resolvedBy      User? @relation("ResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
-
-  resolvedAt      DateTime?
-
-  resolveNote     String?
-
-  postId          String?
-  post            Post? @relation(fields: [postId], references: [id], onDelete: SetNull)
-
-  commentId       String?
-  comment         Comment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@index([status])
-
-  @@index([postId])
-  @@index([commentId])
-
-  @@index([createdAt])
-}
-
-// ═══════════════════════════════════════════════════════════════
-// AI
-// ═══════════════════════════════════════════════════════════════
-
-model AiSummary {
-  id              String @id @default(uuid())
-
-  spaceId         String
-  space           Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
-
-  content         String @db.Text
-
-  date            DateTime @db.Date
-
-  createdAt       DateTime @default(now())
-
-  @@unique([spaceId, date])
-
-  @@index([spaceId])
-}
-
-model AiModerationLog {
-  id              String @id @default(uuid())
-
-  input           String @db.Text
-
-  result          ModerationResult
-
-  reason          String?
-
-  postId          String?
-  commentId       String?
-
-  createdAt       DateTime @default(now())
-
-  @@index([result])
-  @@index([createdAt])
+  id             String    @id @default(uuid())
+  userId         String    @unique
+  newEmail       String?
+  newUserName    String?
+  newDescription String?
+  otpHash        String
+  otpExpiresAt   DateTime
+  attemptCount   Int       @default(0)
+  resendAfter    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
