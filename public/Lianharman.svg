@@ -1,0 +1,51 @@
+<svg width="160" height="160" viewBox="260 25 160 160" role="img" xmlns="http://www.w3.org/2000/svg">
+  <title>LianHarman flame icon</title>
+  <desc>Purple cosmic flame icon in Apple-style rounded square</desc>
+
+  <defs>
+    <clipPath id="ic">
+      <rect x="260" y="25" width="160" height="160" rx="37"/>
+    </clipPath>
+  </defs>
+
+  <rect x="260" y="25" width="160" height="160" rx="37" fill="#18161f"/>
+
+  <g clip-path="url(#ic)" fill="#3d2480">
+    <ellipse cx="340" cy="150" rx="54" ry="22"/>
+    <ellipse cx="306" cy="120" rx="38" ry="35"/>
+    <ellipse cx="376" cy="114" rx="35" ry="37"/>
+    <ellipse cx="342" cy="84"  rx="43" ry="35"/>
+    <ellipse cx="288" cy="88"  rx="27" ry="27"/>
+    <ellipse cx="387" cy="80"  rx="24" ry="27"/>
+    <ellipse cx="352" cy="60"  rx="22" ry="22"/>
+    <ellipse cx="320" cy="68"  rx="18" ry="18"/>
+  </g>
+
+  <g clip-path="url(#ic)" fill="#8b6dd8">
+    <ellipse cx="340" cy="150" rx="46" ry="17"/>
+    <ellipse cx="310" cy="118" rx="32" ry="29"/>
+    <ellipse cx="371" cy="112" rx="30" ry="31"/>
+    <ellipse cx="342" cy="86"  rx="36" ry="29"/>
+    <ellipse cx="291" cy="90"  rx="22" ry="22"/>
+    <ellipse cx="384" cy="82"  rx="20" ry="22"/>
+    <ellipse cx="353" cy="63"  rx="18" ry="17"/>
+    <ellipse cx="322" cy="70"  rx="14" ry="14"/>
+  </g>
+
+  <g clip-path="url(#ic)" fill="#c4aaee">
+    <ellipse cx="330" cy="100" rx="24" ry="21"/>
+    <ellipse cx="360" cy="94"  rx="22" ry="22"/>
+    <ellipse cx="345" cy="74"  rx="20" ry="16"/>
+    <ellipse cx="362" cy="116" rx="15" ry="15"/>
+    <ellipse cx="316" cy="110" rx="13" ry="12"/>
+  </g>
+
+  <g clip-path="url(#ic)" fill="#ffffff">
+    <path d="M333,80 L335,88 L343,90 L335,92 L333,100 L331,92 L323,90 L331,88 Z"/>
+    <path d="M359,69 L360.4,75 L367,77 L360.4,78.4 L359,85 L357.6,78.4 L351,77 L357.6,75 Z"/>
+    <path d="M348,107 L349,111 L353,112 L349,113 L348,117 L347,113 L343,112 L347,111 Z"/>
+    <path d="M315,101 L315.8,104.2 L319,105 L315.8,105.8 L315,109 L314.2,105.8 L311,105 L314.2,104.2 Z"/>
+    <path d="M371,95 L371.8,98.2 L375,99 L371.8,99.8 L371,103 L370.2,99.8 L367,99 L370.2,98.2 Z"/>
+    <path d="M344,58 L344.6,61.4 L348,62 L344.6,62.6 L344,66 L343.4,62.6 L340,62 L343.4,61.4 Z"/>
+  </g>
+</svg>

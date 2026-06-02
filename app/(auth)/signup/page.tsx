@@ -21,11 +21,11 @@ export default function SignupPage() {
           </div>
         </div>
       </div>
-      <div className="relative hidden bg-muted lg:block">
+      <div className="relative hidden bg-[#18161f] lg:flex lg:flex-col lg:justify-end lg:p-10">
         <img
-          src="https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/nestjs/default.svg"
-          alt="NestJS"
-          className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
+          src="/lianharman.svg"
+          alt="LianHarman background"
+          className="absolute inset-0 h-full w-full object-cover"
         />
       </div>
     </div>
