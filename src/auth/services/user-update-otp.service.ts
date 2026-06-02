@@ -3,7 +3,6 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
 import { EmailService } from '@/email/email.service';
 import { OtpService } from '@/auth/services/otp.service';
-import { comparePassword } from '@/lib/bcrypt/bcrypt';
 import { ConflictException, ValidationException } from '@/common/exceptions/app.exception';
 import { RequestUpdateUserOtpDto } from '@/users/dto/update-user.dto';
 import { toUserEntity } from '@/users/helpers/toUserEntity.helper';
@@ -13,16 +12,12 @@ import ms from 'ms';
 
 @Injectable()
 export class UserUpdateOtpService implements IUserUpdateOtpService {
-    private readonly otpLength: number;
-
     constructor(
         private readonly prismaService: PrismaService,
         private readonly configService: ConfigService,
         private readonly emailService: EmailService,
         private readonly otpService: OtpService,
-    ) {
-        this.otpLength = Number(this.configService.get('OTP_LENGTH'));
-    }
+    ) {}
 
     /**
      * Bước 1: Nhận yêu cầu update, phân tích thay đổi và gửi OTP phù hợp.
@@ -110,16 +105,9 @@ export class UserUpdateOtpService implements IUserUpdateOtpService {
         const targetEmail = emailChanged ? newEmail! : currentUser.email;
 
         // Kiểm tra cooldown (nếu có pending update cũ)
-        const now = new Date();
-        const existingPending = await this.prismaService.pendingUserUpdate.findUnique({
-            where: { userId },
-        });
+        const existingPending = await this.prismaService.pendingUserUpdate.findUnique({ where: { userId } });
         if (existingPending) {
-            if (existingPending.resendAfter && existingPending.resendAfter > now) {
-                const remainingSeconds = Math.ceil((existingPending.resendAfter.getTime() - now.getTime()) / 1000);
-                throw new ConflictException(`Please wait ${remainingSeconds} seconds before requesting a new OTP.`);
-            }
-            // Xóa pending cũ nếu đã hết cooldown
+            this.otpService.assertNoCooldown(existingPending.resendAfter);
             await this.prismaService.pendingUserUpdate.delete({ where: { userId } });
         }
 
@@ -168,40 +156,21 @@ export class UserUpdateOtpService implements IUserUpdateOtpService {
      * Bước 2: Xác nhận OTP và áp dụng thay đổi
      */
     async verifyAndApplyUpdate(userId: string, otp: string) {
-        if (otp.length !== this.otpLength) {
-            throw new ValidationException(`OTP must be exactly ${this.otpLength} digits`);
-        }
+        const pending = await this.prismaService.pendingUserUpdate.findUnique({ where: { userId } });
+        if (!pending) throw new ValidationException('No pending update found. Please request an update first.');
 
-        // Lấy pending update
-        const pending = await this.prismaService.pendingUserUpdate.findUnique({
-            where: { userId },
-        });
-
-        if (!pending) {
-            throw new ValidationException('No pending update found. Please request an update first.');
-        }
-
-        if (pending.otpExpiresAt <= new Date()) {
-            await this.prismaService.pendingUserUpdate.delete({ where: { userId } });
-            throw new ValidationException('OTP has expired. Please request a new update.');
-        }
-
-        // Verify OTP
-        const isValid = await comparePassword(otp, pending.otpHash);
-        if (!isValid) {
-            const updated = await this.prismaService.pendingUserUpdate.update({
-                where: { userId },
-                data: { attemptCount: { increment: 1 } },
-            });
-
-            const maxAttempts = Number(this.configService.get('OTP_MAX_ATTEMPTS') || '5');
-            const remainingAttempts = maxAttempts - updated.attemptCount;
-            if (remainingAttempts <= 0) {
-                await this.prismaService.pendingUserUpdate.delete({ where: { userId } });
-                throw new ValidationException('Too many incorrect attempts. Please request a new update.');
-            }
-            throw new ValidationException(`Invalid OTP. You have ${remainingAttempts} attempt(s) remaining.`);
-        }
+        await this.otpService.verify(
+            otp,
+            pending,
+            () => this.prismaService.pendingUserUpdate.delete({ where: { userId } }).then(() => {}),
+            async () => {
+                const updated = await this.prismaService.pendingUserUpdate.update({
+                    where: { userId },
+                    data: { attemptCount: { increment: 1 } },
+                });
+                return updated.attemptCount;
+            },
+        );
 
         // OTP đúng → áp dụng thay đổi
         const updateData: Record<string, string> = {};
@@ -209,18 +178,16 @@ export class UserUpdateOtpService implements IUserUpdateOtpService {
         if (pending.newUserName) updateData.userName = pending.newUserName;
         if (pending.newDescription) updateData.description = pending.newDescription;
 
-        const updatedUser = await this.prismaService.user.update({
-            where: { id: userId },
-            data: updateData,
-            include: { role: { select: { roleName: true } } },
+        const updatedUser = await this.prismaService.$transaction(async (tx) => {
+            const user = await tx.user.update({
+                where: { id: userId },
+                data: updateData,
+                include: { role: { select: { roleName: true } } },
+            });
+            await tx.pendingUserUpdate.delete({ where: { userId } });
+            return user;
         });
 
-        // Xóa pending update
-        await this.prismaService.pendingUserUpdate.delete({ where: { userId } });
-
-        return {
-            message: 'Profile updated successfully',
-            data: toUserEntity(updatedUser),
-        };
+        return { message: 'Profile updated successfully', data: toUserEntity(updatedUser) };
     }
 }

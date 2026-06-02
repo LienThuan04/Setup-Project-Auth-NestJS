@@ -5,7 +5,7 @@ import { UsersService } from '@/users/users.service';
 import { EmailService } from '@/email/email.service';
 import { RegisterDto, VerifyRegisterOtpDto } from '@/auth/dto/create-auth.dto';
 import { generatePasswordHash } from '@/lib/bcrypt/bcrypt';
-import { ConflictException, NotFoundException, ValidationException } from '@/common/exceptions/app.exception';
+import { ConflictException, NotFoundException } from '@/common/exceptions/app.exception';
 import { AccountType } from '@/common/enums/account-type.enum';
 import { OtpService } from '@/auth/services/otp.service';
 import type { ISanitizedUser } from '@/auth/interfaces/auth.types';
@@ -28,85 +28,100 @@ export class RegisterService implements IRegisterService {
         this.saltRounds = Number(this.configService.get('BCRYPT_SALT_ROUNDS') || '10');
         this.defaultRoleName = this.configService.get('NAME_ROLE_USER')!;
         this.otpExpire = this.configService.get('OTP_EXPIRE')!;
-        if (!this.defaultRoleName) {
-            throw new Error('Default role name is not defined in environment variables');
-        }
-        if (!this.otpExpire || this.otpExpire.trim() === '') {
-            throw new Error('OTP_EXPIRE is not defined in environment variables');
-        }
 
+        if (!this.defaultRoleName) throw new Error('Default role name is not defined');
+        if (!this.otpExpire?.trim()) throw new Error('OTP_EXPIRE is not defined');
     }
 
     async register(dto: RegisterDto): Promise<{ otpExpire: string }> {
-        const now = new Date();
         const { userName, email, password } = dto;
+        const now = new Date();
 
-        // Validate email
-        this.validateEmail(email);
+        // Block if email or username already in user table
+        const existed = await this.usersService.checkEmailOrUsernameExists(email, userName);
+        if (existed.exists) throw new ConflictException(`${existed.field} already exists`);
 
-        // Check existing user
-        await this.checkExistingUser(email, userName);
+        // Fetch any existing pending records for this email and username in parallel
+        const [pendingByEmail, pendingByUsername] = await Promise.all([
+            this.prismaService.pendingRegistration.findUnique({ where: { email } }),
+            this.prismaService.pendingRegistration.findUnique({ where: { userName } }),
+        ]);
 
-        // Clean expired pending registrations
-        await this.cleanExpiredPending(email, userName, now);
-
-        // Check cooldown
-        const activePendingByEmail = await this.prismaService.pendingRegistration.findUnique({ where: { email } });
-        const activePendingByUsername = await this.prismaService.pendingRegistration.findUnique({ where: { userName } });
-
-        if (activePendingByEmail) {
-            if (activePendingByEmail.resendAfter && activePendingByEmail.resendAfter > now) {
-                const remainingSeconds = Math.ceil((activePendingByEmail.resendAfter.getTime() - now.getTime()) / 1000);
-                throw new ConflictException(`A pending registration exists for this email. You can request a new OTP after ${remainingSeconds} second(s).`);
+        // Handle existing pending for this email
+        if (pendingByEmail) {
+            if (pendingByEmail.otpExpiresAt > now) {
+                // Still active — enforce cooldown
+                this.otpService.assertNoCooldown(pendingByEmail.resendAfter);
+            } else {
+                // Expired — clean it up so we can create a fresh one
+                await this.prismaService.pendingRegistration.delete({ where: { email } });
             }
         }
 
-        if (activePendingByUsername && activePendingByUsername.email !== email) {
-            // Kiểm tra cooldown của pending đang chiếm username
-            if (activePendingByUsername.resendAfter && activePendingByUsername.resendAfter > now) {
-                const remainingSeconds = Math.ceil((activePendingByUsername.resendAfter.getTime() - now.getTime()) / 1000);
-                throw new ConflictException(`Username "${userName}" is temporarily taken. Please try again after ${remainingSeconds} seconds.`);
+        // Handle a different pending that is occupying the same username
+        if (pendingByUsername && pendingByUsername.email !== email) {
+            if (pendingByUsername.otpExpiresAt > now) {
+                this.otpService.assertNoCooldown(pendingByUsername.resendAfter);
+                // Still within cooldown — username is temporarily taken
+                const remaining = pendingByUsername.resendAfter
+                    ? Math.ceil((pendingByUsername.resendAfter.getTime() - now.getTime()) / 1000)
+                    : 0;
+                if (remaining > 0) {
+                    throw new ConflictException(`Username "${userName}" is temporarily taken. Please try again after ${remaining} seconds.`);
+                }
             }
-            // Nếu đã hết cooldown, mới được xóa
-            await this.prismaService.pendingRegistration.delete({ where: { email: activePendingByUsername.email } });
+            // Expired or cooldown passed — free the username
+            await this.prismaService.pendingRegistration.delete({ where: { email: pendingByUsername.email } });
         }
 
-        // Create pending registration
+        // Create / refresh the pending record
         const passwordHash = await generatePasswordHash(password, this.saltRounds);
         const { otp, otpHash, otpExpiresAt, resendAfter } = await this.otpService.generate();
 
-        const pending = await this.prismaService.pendingRegistration.upsert({
+        await this.prismaService.pendingRegistration.upsert({
             where: { email },
             update: { userName, passwordHash, otpHash, otpExpiresAt, attemptCount: 0, resendAfter },
             create: { email, userName, passwordHash, otpHash, otpExpiresAt, attemptCount: 0, resendAfter },
         });
 
-        // Send OTP email
-        await this.sendOtpEmail(email, userName, otp, pending);
+        try {
+            await this.emailService.sendRegisterOtp(email, userName, otp, this.otpExpire);
+        } catch {
+            await this.prismaService.pendingRegistration.deleteMany({ where: { email } });
+            throw new ConflictException('Failed to send OTP email. Please try again.');
+        }
 
         return { otpExpire: this.otpExpire };
     }
 
     async verifyOtp(dto: VerifyRegisterOtpDto): Promise<ISanitizedUser> {
         const { email, otp } = dto;
-        const pending = await this.otpService.verify(email, otp, 'pending registration');
 
-        // Check if user already exists
+        const pending = await this.prismaService.pendingRegistration.findUnique({ where: { email } });
+        if (!pending) throw new ConflictException('No pending registration found for this email');
+
+        await this.otpService.verify(
+            otp,
+            pending,
+            () => this.prismaService.pendingRegistration.delete({ where: { email } }).then(() => {}),
+            async () => {
+                const updated = await this.prismaService.pendingRegistration.update({
+                    where: { email },
+                    data: { attemptCount: { increment: 1 } },
+                });
+                return updated.attemptCount;
+            },
+        );
+
+        // Guard: ensure no race condition created a user between OTP send and verify
         const existingUser = await this.prismaService.user.findFirst({
-            where: { OR: [{ email: pending.email }, { userName: pending.userName }] }
+            where: { OR: [{ email: pending.email }, { userName: pending.userName }] },
         });
+        if (existingUser) throw new ConflictException('User already exists with this email or username');
 
-        if (existingUser) {
-            throw new ConflictException('User already exists with this email or username');
-        }
-
-        // Get default role
-        const defaultRole = await this.prismaService.role.findUnique({
-            where: { roleName: this.defaultRoleName }
-        });
+        const defaultRole = await this.prismaService.role.findUnique({ where: { roleName: this.defaultRoleName } });
         if (!defaultRole) throw new NotFoundException('Default role not found');
 
-        // Create user
         const createdUser = await this.prismaService.$transaction(async (tx) => {
             const user = await tx.user.create({
                 data: {
@@ -120,26 +135,20 @@ export class RegisterService implements IRegisterService {
             await tx.pendingRegistration.delete({ where: { email: pending.email } });
             return user;
         });
-        return sanitizeUser({
-            ...createdUser,
-            roleName: this.defaultRoleName,
-        } as ISanitizedUser);
+
+        return sanitizeUser({ ...createdUser, roleName: this.defaultRoleName } as ISanitizedUser);
     }
 
     async resendOtp(email: string): Promise<{ otpExpire: string }> {
-        const now = new Date();
-
         const pending = await this.prismaService.pendingRegistration.findUnique({ where: { email } });
-        if (!pending) {
-            throw new ConflictException('No pending registration found. Please register first.');
-        }
+        if (!pending) throw new ConflictException('No pending registration found. Please register first.');
 
-        if (pending.otpExpiresAt <= now) {
+        if (pending.otpExpiresAt <= new Date()) {
             await this.prismaService.pendingRegistration.delete({ where: { email } });
             throw new ConflictException('OTP has expired. Please register again.');
         }
 
-        await this.otpService.checkCooldown(email);
+        this.otpService.assertNoCooldown(pending.resendAfter);
 
         const { otp, otpHash, otpExpiresAt, resendAfter } = await this.otpService.generate();
 
@@ -151,59 +160,5 @@ export class RegisterService implements IRegisterService {
         await this.emailService.sendRegisterOtp(email, updated.userName, otp, this.otpExpire);
 
         return { otpExpire: this.otpExpire };
-    }
-
-    // ==================== PRIVATE METHODS ====================
-    private validateEmail(email: string): void {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!email || !emailRegex.test(email)) {
-            throw new ValidationException('Invalid email address');
-        }
-    }
-
-    private async checkExistingUser(email: string, userName: string): Promise<void> {
-        const existed = await this.usersService.checkEmailOrUsernameExists(email, userName);
-        if (existed.exists) {
-            throw new ConflictException(`${existed.field} already exists`);
-        }
-    }
-
-    private async cleanExpiredPending(email: string, userName: string, now: Date): Promise<void> {
-        const pendingByEmail = await this.prismaService.pendingRegistration.findUnique({ where: { email } });
-        const pendingByUsername = await this.prismaService.pendingRegistration.findUnique({ where: { userName } });
-
-        if (pendingByEmail && pendingByEmail.otpExpiresAt <= now) {
-            await this.prismaService.pendingRegistration.delete({ where: { email: pendingByEmail.email } });
-        }
-        if (pendingByUsername && pendingByUsername.otpExpiresAt <= now && pendingByUsername.email !== email) {
-            await this.prismaService.pendingRegistration.delete({ where: { email: pendingByUsername.email } });
-        }
-
-        // Check username conflict
-        // const activeByUsername = await this.prismaService.pendingRegistration.findUnique({ where: { userName } });
-        // if (activeByUsername && activeByUsername.email !== email) {
-        //     await this.prismaService.pendingRegistration.delete({ where: { email: activeByUsername.email } });
-        // }
-    }
-
-    private async sendOtpEmail(email: string, userName: string, otp: string,
-        pendingRegistration: {
-            id: string;
-            createdAt: Date;
-            updatedAt: Date;
-            userName: string;
-            email: string;
-            passwordHash: string;
-            otpHash: string;
-            otpExpiresAt: Date;
-            attemptCount: number;
-            resendAfter: Date | null;
-        }): Promise<void> {
-        try {
-            await this.emailService.sendRegisterOtp(email, userName, otp, this.otpExpire);
-        } catch (error) {
-            await this.prismaService.pendingRegistration.deleteMany({ where: { email: pendingRegistration.email } });
-            throw new ConflictException('Failed to send OTP email. Please try again.');
-        }
     }
 }

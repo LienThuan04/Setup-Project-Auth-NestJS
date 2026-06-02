@@ -812,3 +812,929 @@ and setup tsconfig for testing in `tsconfig.json`:
     }
   }
 ```
+
+## 11 Password Reset Flow — Forgot Password with OTP
+
+### Luồng hiện tại (Option A: JWT Reset Token — đã implement)
+
+Sau khi xác thực OTP thành công, server trả về một JWT reset token ngắn hạn.
+Client dùng token đó ở bước riêng để đặt mật khẩu mới, giống như GitHub / Google.
+
+```
+POST /auth/change-password/send-otp
+  Body: { email }
+  → Gửi OTP qua email. Trả về: { otpExpire }
+
+POST /auth/change-password/verify-otp
+  Body: { email, otp }
+  → Xác thực OTP. Trả về: { resetToken, expiresIn }
+    resetToken là JWT ký bằng JWT_PASSWORD_RESET_SECRET, hết hạn sau PASSWORD_RESET_EXPIRE (mặc định 15m)
+
+POST /auth/change-password/reset
+  Body: { resetToken, newPassword }
+  → Xác thực JWT, đặt mật khẩu mới. Trả về: thông tin user
+```
+
+**Env vars cần thêm:**
+```env
+JWT_PASSWORD_RESET_SECRET="your_secret_here"
+PASSWORD_RESET_EXPIRE="15m"
+```
+
+**Hạn chế của Option A:** JWT stateless → không thể thu hồi trước khi hết hạn.
+Nếu user request OTP nhiều lần, nhiều reset token cùng hợp lệ trong window 15 phút.
+Với auth starter / app thông thường, điều này chấp nhận được.
+
+---
+
+### Option B: Redis Reset Token (chưa implement — tham khảo để nâng cấp)
+
+Thay JWT bằng random token lưu trong Redis với TTL. Mỗi token chỉ dùng được 1 lần
+và bị xóa ngay sau khi đặt mật khẩu thành công. An toàn hơn cho production.
+
+**Bước 1: Thêm RedisModule vào AuthModule** (`auth.module.ts`)
+
+```typescript
+import { RedisModule } from '@/redis/redis.module';
+
+@Module({
+  imports: [
+    ...,
+    RedisModule,  // thêm dòng này
+  ],
+  ...
+})
+export class AuthModule {}
+```
+
+**Bước 2: Inject RedisService vào PasswordService** (`password.service.ts`)
+
+```typescript
+import { RedisService } from '@/redis/redis.service';
+import { randomBytes } from 'crypto';
+
+constructor(
+    // ... các dependency cũ
+    private readonly redisService: RedisService,  // thêm dòng này
+) { ... }
+```
+
+**Bước 3: Thay `verifyOtp` — tạo random token thay vì JWT**
+
+```typescript
+async verifyOtp(dto: ChangePasswordVerifyDto): Promise<IPasswordResetResult> {
+    const { email, otp } = dto;
+
+    await this.otpService.verify(email, otp, 'OTP requested for password change');
+    await this.prismaService.pendingRegistration.deleteMany({ where: { email } });
+
+    // Tạo random token thay vì JWT
+    const resetToken = randomBytes(32).toString('hex'); // 64-char hex string
+    const ttlSeconds = ms(this.resetTokenExpire as ms.StringValue) / 1000;
+
+    // Lưu vào Redis: key = "pwd_reset:<token>", value = email, TTL tự động xóa
+    await this.redisService.set(`pwd_reset:${resetToken}`, email, ttlSeconds);
+
+    return { resetToken, expiresIn: this.resetTokenExpire };
+}
+```
+
+**Bước 4: Thay `resetPassword` — đọc email từ Redis thay vì decode JWT**
+
+```typescript
+async resetPassword(dto: ResetPasswordDto): Promise<ISanitizedUser> {
+    const { resetToken, newPassword } = dto;
+
+    // Lấy email từ Redis bằng token
+    const email = await this.redisService.get<string>(`pwd_reset:${resetToken}`);
+    if (!email) {
+        throw new ConflictException('Reset token is invalid or has expired. Please request a new OTP.');
+    }
+
+    // Xóa token ngay — đảm bảo single-use
+    await this.redisService.del(`pwd_reset:${resetToken}`);
+
+    const newPasswordHash = await generatePasswordHash(newPassword, this.saltRounds);
+
+    const user = await this.prismaService.user.findUnique({ where: { email } });
+    if (!user) throw new NotFoundException('User not found.');
+
+    const updatedUser = await this.prismaService.user.update({
+        where: { email },
+        data: { password: newPasswordHash },
+        include: { role: { select: { roleName: true } } },
+    });
+
+    return sanitizeUser({
+        ...updatedUser,
+        roleName: updatedUser.role?.roleName ?? null,
+    } as ISanitizedUser);
+}
+```
+
+**Bước 5: Bỏ JwtService khỏi PasswordService** (không cần nữa nếu dùng Option B)
+- Xóa `private readonly jwtService: JwtService` khỏi constructor
+- Xóa `JWT_PASSWORD_RESET_SECRET` khỏi `.env` (chỉ giữ `PASSWORD_RESET_EXPIRE` cho TTL Redis)
+
+**So sánh Option A vs Option B:**
+
+| Tiêu chí | Option A (JWT — đang dùng) | Option B (Redis) |
+|---|---|---|
+| Thu hồi token được | Không | Có |
+| Single-use | Không | Có |
+| Cần storage ngoài | Không | Redis (đã có sẵn) |
+| Stateless | Có | Không |
+| Phù hợp | Starter / prototype | Production / bảo mật cao |
+
+---
+
+## 12 App Configuration: Global Prefix, URI Versioning, and CORS
+
+Tách cấu hình ra các file riêng trong `src/config/` để `main.ts` gọn hơn.
+
+- **Install** `@nestjs/config` nếu chưa có:
+```bash
+  pnpm add @nestjs/config
+```
+
+- **Step 1: `src/config/app.config.ts`** — cấu hình global prefix và URI versioning
+```typescript
+  import { VersioningType } from "@nestjs/common";
+  import { ConfigService } from "@nestjs/config";
+  import { NestExpressApplication } from "@nestjs/platform-express";
+
+  export const setupAppConfig = (app: NestExpressApplication): { globalPrefix: string; version: string } => {
+      const configService = app.get(ConfigService);
+      const globalPrefix = configService.get<string>('GLOBAL_PREFIX') || 'api';
+      const version = configService.get<string>('VERSION') || '1';
+      app.setGlobalPrefix(globalPrefix);
+      app.enableVersioning({
+          type: VersioningType.URI,
+          defaultVersion: version,
+      });
+      return { globalPrefix, version };
+  };
+```
+
+- **Step 2: `src/config/cors.config.ts`** — đọc danh sách origin từ env
+```typescript
+  import { ConfigService } from "@nestjs/config";
+  import { NestExpressApplication } from "@nestjs/platform-express";
+
+  export const setupCors = (app: NestExpressApplication) => {
+      const configService = app.get(ConfigService);
+      app.enableCors({
+          origin: configService.get<string>('LIST_ORIGIN_CORS')?.split(','),
+          methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+          credentials: true, // Bắt buộc để cookie refresh token hoạt động với CORS
+      });
+  };
+```
+
+- **Step 3: gọi trong `main.ts`**
+```typescript
+  const { globalPrefix, version } = setupAppConfig(app);
+  setupCors(app);
+  // Route sẽ là: http://localhost:8080/api/v1/...
+```
+
+- **Env vars cần thêm:**
+```env
+  GLOBAL_PREFIX="api"       # Tiền tố cho tất cả route
+  VERSION="1"               # Số phiên bản API (hiện tại là v1)
+  LIST_ORIGIN_CORS="http://localhost:3000,http://localhost:5173"  # Danh sách frontend origin
+```
+
+---
+
+## 13 Global Exception Filter + Custom AppException
+
+Tạo một lớp exception tùy chỉnh và một global filter để tất cả lỗi trong app trả về cùng một cấu trúc JSON.
+
+- **Step 1: `src/common/exceptions/app.exception.ts`** — các lớp exception tùy chỉnh
+```typescript
+  export class AppException extends Error {
+    constructor(
+      public readonly statusCode: number,
+      public readonly message: string,
+      public readonly code: string,
+      public readonly details?: Record<string, any>,
+    ) {
+      super(message);
+      this.name = this.constructor.name;
+      Object.setPrototypeOf(this, new.target.prototype);
+    }
+  }
+
+  export class ValidationException extends AppException {
+    constructor(message: string, details?: Record<string, any>) {
+      super(400, message, 'VALIDATION_ERROR', details);
+    }
+  }
+
+  export class NotFoundException extends AppException {
+    constructor(resource: string, id?: string) {
+      super(404, id ? `${resource} with ID ${id} not found` : `${resource} not found`, 'NOT_FOUND');
+    }
+  }
+
+  export class ConflictException extends AppException {
+    constructor(message: string) {
+      super(409, message, 'CONFLICT');
+    }
+  }
+
+  export class UnauthorizedException extends AppException {
+    constructor(message = 'Unauthorized') {
+      super(401, message, 'UNAUTHORIZED');
+    }
+  }
+
+  export class ForbiddenException extends AppException {
+    constructor(message = 'Forbidden') {
+      super(403, message, 'FORBIDDEN');
+    }
+  }
+
+  export class InternalServerException extends AppException {
+    constructor(message = 'Internal Server Error') {
+      super(500, message, 'INTERNAL_SERVER_ERROR');
+    }
+  }
+```
+
+- **Step 2: `src/common/filters/all-exceptions.filter.ts`** — bắt mọi exception và format response
+```typescript
+  import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
+  import { Request, Response } from 'express';
+  import { AppException } from '@/common/exceptions/app.exception';
+
+  @Catch() // Bắt tất cả loại exception
+  export class AllExceptionsFilter implements ExceptionFilter {
+    private readonly logger = new Logger(AllExceptionsFilter.name);
+
+    catch(exception: unknown, host: ArgumentsHost): void {
+      const ctx = host.switchToHttp();
+      const request = ctx.getRequest<Request>();
+      const response = ctx.getResponse<Response>();
+
+      let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+      let message = 'Internal Server Error';
+      let code = 'INTERNAL_SERVER_ERROR';
+      let details: any;
+
+      if (exception instanceof AppException) {
+        statusCode = exception.statusCode;
+        message = exception.message;
+        code = exception.code;
+        details = exception.details;
+      } else if (exception instanceof HttpException) {
+        statusCode = exception.getStatus();
+        const res = exception.getResponse() as any;
+        message = Array.isArray(res.message) ? res.message.join(', ') : res.message || message;
+        if (res.errors) details = res.errors; // Giữ lại lỗi validation từ ValidationPipe
+        code = 'HTTP_EXCEPTION';
+      } else if (exception instanceof Error) {
+        message = exception.message;
+      }
+
+      this.logger.error({ method: request.method, path: request.url, statusCode, message, code });
+
+      response.status(statusCode).json({
+        statusCode, message, code,
+        timestamp: new Date().toISOString(),
+        path: request.url,
+        ...(details && { details }),
+      });
+    }
+  }
+```
+
+- **Step 3: đăng ký global trong `app.module.ts`**
+```typescript
+  import { APP_FILTER } from '@nestjs/core';
+  import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
+
+  providers: [
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+  ]
+```
+
+**Key Points:**
+- Dùng `AppException` thay vì `throw new Error()` để đảm bảo response luôn đúng cấu trúc
+- `@Catch()` không có tham số → bắt tất cả, kể cả lỗi không phải HttpException
+- `details` chỉ xuất hiện trong response nếu có (spread có điều kiện)
+
+---
+
+## 14 Global Transform Interceptor — Chuẩn Hóa Response
+
+Tất cả response thành công trả về cùng một cấu trúc JSON gồm `statusCode`, `message`, `data`, `timestamp`, `path`.
+
+- **`src/common/interceptors/transform.interceptor.ts`**
+```typescript
+  import { Injectable, NestInterceptor, ExecutionContext, CallHandler, HttpStatus } from '@nestjs/common';
+  import { Observable } from 'rxjs';
+  import { map } from 'rxjs/operators';
+  import { Request } from 'express';
+
+  export interface IApiResponse<T> {
+    statusCode: number;
+    message: string;
+    code?: string;
+    data?: T;
+    timestamp?: string;
+    path?: string;
+  }
+
+  @Injectable()
+  export class TransformInterceptor<T> implements NestInterceptor<T, IApiResponse<T>> {
+    intercept(context: ExecutionContext, next: CallHandler): Observable<IApiResponse<T>> {
+      const request = context.switchToHttp().getRequest<Request>();
+
+      return next.handle().pipe(
+        map((data) => {
+          // Nếu controller đã trả về đúng cấu trúc thì giữ nguyên, chỉ bổ sung timestamp và path
+          if (data && typeof data === 'object' && 'statusCode' in data && 'message' in data) {
+            return { ...data, code: data.code || 'SUCCESS', timestamp: new Date().toISOString(), path: request.url };
+          }
+          // Nếu controller trả về raw data thì bọc vào cấu trúc chuẩn
+          return { statusCode: HttpStatus.OK, message: 'Request successful', code: 'SUCCESS', data, timestamp: new Date().toISOString(), path: request.url };
+        }),
+      );
+    }
+  }
+```
+
+- **Đăng ký global trong `app.module.ts`**
+```typescript
+  import { APP_INTERCEPTOR } from '@nestjs/core';
+  import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
+
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
+  ]
+```
+
+---
+
+## 15 Global HTTP Logging Interceptor
+
+Log mỗi request vào và response ra với method, URL, status code và thời gian xử lý.
+
+- **`src/common/interceptors/logging.interceptor.ts`**
+```typescript
+  import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Logger } from '@nestjs/common';
+  import { Observable } from 'rxjs';
+  import { tap, catchError } from 'rxjs/operators';
+  import { Request, Response } from 'express';
+
+  @Injectable()
+  export class LoggingInterceptor implements NestInterceptor {
+    private readonly logger = new Logger('HTTP');
+
+    intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+      const request = context.switchToHttp().getRequest<Request>();
+      const response = context.switchToHttp().getResponse<Response>();
+      const startTime = Date.now();
+
+      return next.handle().pipe(
+        tap(() => {
+          this.logger.log(`${request.method} ${request.url} → ${response.statusCode} | ${Date.now() - startTime}ms`);
+        }),
+        catchError((error) => {
+          this.logger.error(`${request.method} ${request.url} → ERROR | ${Date.now() - startTime}ms`);
+          throw error;
+        }),
+      );
+    }
+  }
+```
+
+- **Đăng ký global trong `app.module.ts`** (đặt trước TransformInterceptor để log đúng thứ tự)
+```typescript
+  import { APP_INTERCEPTOR } from '@nestjs/core';
+  import { ClassSerializerInterceptor } from '@nestjs/common';
+  import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
+
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: ClassSerializerInterceptor }, // loại bỏ field @Exclude()
+    { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
+  ]
+```
+
+---
+
+## 16 Custom Route Decorators
+
+Tạo các decorator dùng lại nhiều lần để đánh dấu route public, admin-only và lấy thông tin user/deviceId từ request.
+
+- **`src/common/decorators/metadata.ts`** — decorator dùng với JWT Guard
+```typescript
+  import { SetMetadata } from '@nestjs/common';
+
+  export const IS_PUBLIC_KEY = 'isPublic';
+  export const IS_ADMIN_ONLY_KEY = 'isAdminOnly';
+
+  // @Public() — bỏ qua JWT authentication, dùng trên route không cần đăng nhập
+  export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
+
+  // @AdminOnly() — đặt trên class controller, chỉ admin mới được vào
+  export const AdminOnly = () => SetMetadata(IS_ADMIN_ONLY_KEY, true);
+
+  // @SkipAdminOnly() — đặt trên method cụ thể để bỏ qua @AdminOnly() của class
+  // Dùng getAllAndOverride nên false ở method sẽ override true ở class
+  export const SkipAdminOnly = () => SetMetadata(IS_ADMIN_ONLY_KEY, false);
+```
+
+- **`src/common/decorators/user.decorator.ts`** — lấy user/deviceId từ request
+```typescript
+  import { createParamDecorator, ExecutionContext, BadRequestException } from '@nestjs/common';
+  import { Request } from 'express';
+
+  // @User() — lấy user đã xác thực từ request (được gắn vào bởi JwtStrategy)
+  export const User = createParamDecorator((data: unknown, ctx: ExecutionContext) => {
+    return ctx.switchToHttp().getRequest().user;
+  });
+
+  // @UserGoogle() — lấy thông tin Google user trong callback Google OAuth2
+  export const UserGoogle = createParamDecorator((data: unknown, ctx: ExecutionContext) => {
+    return ctx.switchToHttp().getRequest().user;
+  });
+
+  // @DeviceId() — đọc deviceId từ cookie, bắt buộc phải có cho login và refresh
+  export const DeviceId = createParamDecorator((data: unknown, ctx: ExecutionContext): string => {
+    const deviceIdEnv = process.env.NAME_DEVICEID_CLIENT!;
+    const request = ctx.switchToHttp().getRequest<Request>();
+    const deviceId = request.cookies?.[deviceIdEnv];
+    if (!deviceId?.trim()) throw new BadRequestException('Device ID not found in cookies');
+    return deviceId;
+  });
+```
+
+- **Env var cần thêm:**
+```env
+  NAME_DEVICEID_CLIENT="deviceId"   # Tên cookie chứa deviceId từ frontend
+```
+
+- **Cách frontend gửi deviceId lên (cookie):**
+```javascript
+  // Tạo và lưu deviceId vào localStorage + cookie trước khi gọi login
+  let deviceId = localStorage.getItem('deviceId');
+  if (!deviceId) {
+    deviceId = crypto.randomUUID();
+    localStorage.setItem('deviceId', deviceId);
+  }
+  document.cookie = `deviceId=${deviceId}; path=/; max-age=31536000`;
+```
+
+---
+
+## 17 JwtAuthGuard — Global Guard với Admin Role Check
+
+Guard được đăng ký global trong `AppModule`. Tất cả route đều yêu cầu JWT trừ khi có `@Public()`. Route có `@AdminOnly()` chỉ cho phép user có role admin.
+
+- **`src/lib/passport/jwt-auth.guard.ts`**
+```typescript
+  import { IS_ADMIN_ONLY_KEY, IS_PUBLIC_KEY } from '@/common/decorators/metadata';
+  import { ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+  import { Reflector } from '@nestjs/core';
+  import { AuthGuard } from '@nestjs/passport';
+  import { ConfigService } from '@nestjs/config';
+
+  @Injectable()
+  export class JwtAuthGuard extends AuthGuard('jwt') {
+    constructor(
+      private reflector: Reflector,
+      private readonly configService: ConfigService,
+    ) { super(); }
+
+    canActivate(context: ExecutionContext) {
+      // Nếu route có @Public() thì cho qua không cần JWT
+      const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+        context.getHandler(), context.getClass(),
+      ]);
+      if (isPublic) return true;
+      return super.canActivate(context);
+    }
+
+    handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
+      if (err || !user) throw err || new UnauthorizedException('Invalid or expired token');
+      if (info) throw new UnauthorizedException(info.message);
+
+      // Kiểm tra @AdminOnly() — nếu có thì chỉ admin mới qua
+      const isAdminOnly = this.reflector.getAllAndOverride<boolean>(IS_ADMIN_ONLY_KEY, [
+        context.getHandler(), context.getClass(),
+      ]);
+      if (isAdminOnly) {
+        const adminRoleName = this.configService.get<string>('NAME_ROLE_ADMIN');
+        if (user.roleName !== adminRoleName) {
+          throw new ForbiddenException('Access denied: Administrators only.');
+        }
+      }
+      return user;
+    }
+  }
+```
+
+- **Đăng ký global trong `app.module.ts`**
+```typescript
+  import { APP_GUARD } from '@nestjs/core';
+  import { JwtAuthGuard } from '@/lib/passport/jwt-auth.guard';
+
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+  ]
+```
+
+- **Cách dùng trong controller:**
+```typescript
+  @Public()                  // → Không cần JWT (đăng ký, đăng nhập...)
+  @AdminOnly()               // → Cả class chỉ cho admin (users controller)
+  @SkipAdminOnly()           // → Method cụ thể bỏ qua @AdminOnly() của class
+```
+
+**Key Points:**
+- `getAllAndOverride` ưu tiên handler (method) trước class → `@SkipAdminOnly()` trên method sẽ override `@AdminOnly()` trên class
+- Guard chạy trước interceptor và pipe, nên lỗi từ guard không đi qua TransformInterceptor mà đi qua ExceptionFilter
+
+---
+
+## 18 JWT Token System — Access Token + Refresh Token + Session
+
+- **Access token** lưu trong memory frontend (Authorization header), hết hạn ngắn (60 phút)
+- **Refresh token** lưu trong `httpOnly` cookie để tránh XSS, hết hạn dài (1 ngày)
+- **Session** lưu trong DB theo cặp `(userId, deviceId)` — giới hạn số thiết bị đăng nhập
+
+- **`src/auth/passport/jwt.strategy.ts`** — giải mã access token từ header
+```typescript
+  import { Injectable } from '@nestjs/common';
+  import { PassportStrategy } from '@nestjs/passport';
+  import { ExtractJwt, Strategy } from 'passport-jwt';
+  import { ConfigService } from '@nestjs/config';
+
+  @Injectable()
+  export class JwtStrategy extends PassportStrategy(Strategy) {
+    constructor(configService: ConfigService) {
+      super({
+        jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+        ignoreExpiration: false,
+        secretOrKey: configService.get<string>('JWT_ACCESS_TOKEN_SECRET')!,
+      });
+    }
+
+    async validate(payload: any) {
+      return payload; // payload được gắn vào request.user bởi Passport
+    }
+  }
+```
+
+- **`src/auth/services/token.service.ts`** — tạo token và quản lý session
+```typescript
+  async login(user: ISanitizedUser, res: Response, deviceId: string) {
+    // 1. Tạo refresh token (ký với secret riêng, thời hạn dài hơn)
+    const refreshToken = this.jwtService.sign(
+      { userId: user.id, _sub: { roleName: user.roleName, email: user.email }, deviceId },
+      { secret: this.refreshTokenSecret, expiresIn: expiresInSeconds }
+    );
+
+    // 2. Lưu session vào DB (upsert — nếu thiết bị đã có thì cập nhật)
+    await this.sessionService.upsertSession({ userId: user.id, refreshToken, deviceId });
+
+    // 3. Gắn refresh token vào httpOnly cookie
+    res.cookie(this.refreshTokenName, refreshToken, {
+      httpOnly: true,  // Không cho JS đọc → chống XSS
+      secure: true,    // Chỉ gửi qua HTTPS
+      sameSite: 'lax',
+      maxAge: ms(this.expiresInRefresh),
+    });
+
+    // 4. Tạo access token (ký với JwtModule default secret, thời hạn ngắn)
+    return { accessToken: this.jwtService.sign(sanitizeUser(user)), user: sanitizeUser(user) };
+  }
+```
+
+- **Env vars cần thêm:**
+```env
+  JWT_ACCESS_TOKEN_SECRET="your_access_secret"
+  JWT_ACCESS_EXPIRE="60m"
+  JWT_REFRESH_TOKEN_SECRET="your_refresh_secret"
+  JWT_REFRESH_EXPIRE="1d"
+  NAME_COOKIE_REFRESH_TOKEN_BROWSER="refreshToken"   # Tên cookie lưu refresh token
+  NUMBER_OF_DEVICES=2                                # Số thiết bị tối đa đăng nhập cùng lúc
+```
+
+---
+
+## 19 Session Management — Giới Hạn Số Thiết Bị
+
+Session lưu trong DB theo `(userId, deviceId)`. Khi đăng nhập thiết bị mới vượt giới hạn, session cũ nhất sẽ bị xóa tự động.
+
+- **`src/session/session.service.ts`** — logic upsert với device limit
+```typescript
+  async upsertSession(dto: { userId: string; deviceId: string; refreshToken: string }) {
+    return this.prismaService.$transaction(async (tx) => {
+      // Nếu thiết bị đã có session → cập nhật token
+      const existing = await tx.session.findUnique({
+        where: { userId_deviceId: { userId: dto.userId, deviceId: dto.deviceId } },
+      });
+      if (existing) {
+        return tx.session.update({ where: { userId_deviceId: { userId: dto.userId, deviceId: dto.deviceId } }, data: { refreshToken: dto.refreshToken, expiresAt } });
+      }
+
+      // Thiết bị mới → kiểm tra giới hạn
+      const sessions = await tx.session.findMany({ where: { userId: dto.userId, expiresAt: { gt: new Date() } }, orderBy: { expiresAt: 'asc' } });
+      if (sessions.length >= limit) {
+        await tx.session.delete({ where: { id: sessions[0].id } }); // Xóa session cũ nhất
+      }
+
+      return tx.session.create({ data: { userId: dto.userId, deviceId: dto.deviceId, refreshToken: dto.refreshToken, expiresAt } });
+    });
+  }
+```
+
+- **Cần tạo Prisma model `Session`** với unique constraint `(userId, deviceId)`:
+```prisma
+  model Session {
+    id           String   @id @default(cuid())
+    userId       String
+    deviceId     String
+    refreshToken String   @unique
+    expiresAt    DateTime
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+    user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([userId, deviceId])   // Mỗi cặp (user, thiết bị) chỉ có 1 session
+  }
+```
+
+---
+
+## 20 Cron Jobs — Scheduled Tasks với @nestjs/schedule
+
+Tự động dọn dẹp session hết hạn và pending registration cũ mỗi phút.
+
+- **Install:**
+```bash
+  pnpm add @nestjs/schedule
+  pnpm add -D @types/cron
+```
+
+- **Đăng ký trong `app.module.ts`:**
+```typescript
+  import { ScheduleModule } from '@nestjs/schedule';
+
+  imports: [
+    ScheduleModule.forRoot(), // Bật scheduler toàn app
+    ...
+  ]
+```
+
+- **Tạo module và service:**
+```bash
+  nest g module jobs
+  nest g service jobs
+```
+
+- **`src/jobs/jobs.service.ts`** — định nghĩa các cron job
+```typescript
+  import { Injectable, Logger } from '@nestjs/common';
+  import { Cron, CronExpression } from '@nestjs/schedule';
+  import { PrismaService } from '@/prisma/prisma.service';
+
+  @Injectable()
+  export class JobsService {
+    private readonly logger = new Logger(JobsService.name);
+
+    constructor(private readonly prisma: PrismaService) {}
+
+    // Chạy mỗi phút — xóa session đã hết hạn
+    @Cron(CronExpression.EVERY_MINUTE, { name: 'handleExpiredSessions', timeZone: 'Asia/Ho_Chi_Minh', waitForCompletion: true })
+    async handleExpiredSessions() {
+      const result = await this.prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+      if (result.count > 0) this.logger.log(`✅ Deleted ${result.count} expired sessions`);
+    }
+
+    // Chạy mỗi phút — xóa pending registration hết hạn OTP
+    @Cron(CronExpression.EVERY_MINUTE, { name: 'cleanupExpiredPendingRegistrations', timeZone: 'Asia/Ho_Chi_Minh', waitForCompletion: true })
+    async cleanupExpiredPendingRegistrations() {
+      const result = await this.prisma.pendingRegistration.deleteMany({ where: { otpExpiresAt: { lt: new Date() } } });
+      if (result.count > 0) this.logger.log(`✅ Deleted ${result.count} expired pending registrations`);
+    }
+  }
+```
+
+- **`src/jobs/jobs.module.ts`:**
+```typescript
+  import { Module } from '@nestjs/common';
+  import { JobsService } from './jobs.service';
+
+  @Module({ providers: [JobsService] })
+  export class JobsModule {}
+```
+
+**Key Points:**
+- `waitForCompletion: true` — đảm bảo lần chạy trước kết thúc trước khi lần tiếp theo bắt đầu
+- `CronExpression.EVERY_MINUTE` — chạy đầu mỗi phút (cron: `0 * * * * *`)
+- Timezone `Asia/Ho_Chi_Minh` — đảm bảo cron theo giờ Việt Nam
+
+---
+
+## 21 Database Seeding — Khởi Tạo Dữ Liệu Mẫu Khi Khởi Động
+
+`SeedDbService` implements `OnModuleInit` để tự động seed khi app khởi động, controlled bởi env vars.
+
+- **`src/seed-db/seed/sample.ts`** — dữ liệu mẫu
+```typescript
+  export const roles = [
+    { roleName: 'ADMIN' },
+    { roleName: 'USER' },
+  ];
+
+  export const users = [
+    { email: 'admin@example.com', userName: 'admin', password: null, roleName: 'ADMIN' },
+    { email: 'user@example.com',  userName: 'user',  password: null, roleName: 'USER'  },
+  ];
+```
+
+- **`src/seed-db/seed-db.service.ts`** — logic seed và clear
+```typescript
+  @Injectable()
+  export class SeedDbService implements OnModuleInit {
+    async onModuleInit() {
+      const shouldSeed  = this.configService.get<string>('SEED_DB')  === 'true';
+      const shouldClear = this.configService.get<string>('CLEAR_DB') !== 'false'; // Mặc định true
+
+      if (shouldSeed) {
+        if (shouldClear) await this.clear(); // Xóa toàn bộ DB trước khi seed
+        await this.seed();                   // Seed roles → users theo đúng thứ tự dependency
+      }
+    }
+  }
+```
+
+- **Env vars kiểm soát seeding:**
+```env
+  SEED_DB=true     # true → chạy seed khi app khởi động
+  CLEAR_DB=false   # false → chỉ seed, không xóa data cũ trước
+                   # true  → xóa toàn bộ DB + Supabase Storage trước khi seed (NGUY HIỂM khi production!)
+  DEFAULT_PASSWORD="123456"  # Mật khẩu mặc định cho tài khoản seed
+```
+
+**Key Points:**
+- `CLEAR_DB=false` ở production để không vô tình xóa data thật
+- Seed theo thứ tự: roles trước, users sau (vì users cần roleId)
+- `skipDuplicates: true` trong `createMany` — không throw lỗi nếu data đã tồn tại
+
+---
+
+## 22 OTP Registration Flow — Đăng Ký Với Xác Thực Email
+
+Luồng đăng ký 2 bước: gửi OTP để xác minh email trước khi tạo tài khoản.
+
+```
+POST /auth/register
+  Body: { userName, email, password }
+  → Lưu vào bảng pendingRegistration (chưa tạo user), gửi OTP qua email
+  → Trả về: { otpExpire }
+
+POST /auth/verify-register-otp
+  Body: { email, otp }
+  → Xác thực OTP, tạo user trong bảng user, xóa pendingRegistration
+  → Trả về: thông tin user mới (ISanitizedUser)
+
+POST /auth/resend-register-otp
+  Body: { email }
+  → Tạo OTP mới và gửi lại (chỉ khi hết cooldown)
+  → Trả về: { otpExpire }
+```
+
+- **Prisma model `PendingRegistration`** cần có:
+```prisma
+  model PendingRegistration {
+    id            String    @id @default(cuid())
+    email         String    @unique
+    userName      String    @unique
+    passwordHash  String
+    otpHash       String
+    otpExpiresAt  DateTime
+    attemptCount  Int       @default(0)
+    resendAfter   DateTime?
+    createdAt     DateTime  @default(now())
+    updatedAt     DateTime  @updatedAt
+  }
+```
+
+- **OtpService** (pure — không truy cập DB) dùng chung cho tất cả OTP flows:
+```typescript
+  // Tạo OTP mới
+  async generate(): Promise<{ otp, otpHash, otpExpiresAt, resendAfter }>
+
+  // Kiểm tra format OTP (độ dài)
+  assertFormat(otp: string): void
+
+  // Kiểm tra cooldown từ Date — throw nếu còn trong thời gian chờ
+  assertNoCooldown(resendAfter: Date | null | undefined): void
+
+  // Xác thực OTP — caller truyền callback để xử lý DB (delete khi expired/locked, increment khi sai)
+  async verify(otp, record, onCleanup: () => Promise<void>, onIncrementAttempt: () => Promise<number>): Promise<void>
+```
+
+- **Env vars liên quan:**
+```env
+  OTP_EXPIRE=5m             # Thời gian OTP còn hiệu lực
+  OTP_LENGTH=6              # Độ dài OTP (số chữ số)
+  OTP_MAX_ATTEMPTS=5        # Số lần nhập sai tối đa trước khi khóa
+  OTP_RESEND_COOLDOWN=60s   # Thời gian chờ giữa 2 lần gửi OTP
+```
+
+---
+
+## 23 OTP Profile Update — Đổi Email/Username Với Xác Thực OTP
+
+User có thể đổi email, username hoặc description với bảo vệ OTP. Chỉ description thay đổi thì cập nhật ngay, không cần OTP.
+
+```
+POST /users/update-profile/request-otp       (cần JWT)
+  Body: { email?, userName?, description? }
+  → Nếu chỉ description thay đổi: cập nhật ngay, trả về { skipOtp: true, data: userEntity }
+  → Nếu email/username thay đổi:
+      - Gửi OTP đến EMAIL MỚI nếu email thay đổi
+      - Gửi OTP đến EMAIL CŨ nếu chỉ username thay đổi
+      - Trả về: { skipOtp: false, data: { targetEmail (masked), changes } }
+
+POST /users/update-profile/verify-otp        (cần JWT)
+  Body: { otp }
+  → Xác thực OTP, áp dụng thay đổi, trả về userEntity mới
+```
+
+- **Prisma model `PendingUserUpdate`** cần có:
+```prisma
+  model PendingUserUpdate {
+    id            String    @id @default(cuid())
+    userId        String    @unique
+    newEmail      String?
+    newUserName   String?
+    newDescription String?
+    otpHash       String
+    otpExpiresAt  DateTime
+    attemptCount  Int       @default(0)
+    resendAfter   DateTime?
+    createdAt     DateTime  @default(now())
+    updatedAt     DateTime  @updatedAt
+    user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  }
+```
+
+- **Google account bị giới hạn:** không được đổi email và username (chỉ description)
+- **`@SkipAdminOnly()`** trên endpoint — vì `UsersController` có `@AdminOnly()` ở class level nhưng update profile cho phép user thường dùng
+
+**Key Points:**
+- OTP gửi đến EMAIL MỚI (không phải email cũ) khi đổi email → xác minh người dùng thực sự sở hữu email mới
+- Masked email trong response (ví dụ: `li***@gmail.com`) để không lộ email mới khi chưa xác thực
+- Dùng transaction khi apply update để đảm bảo atomicity: update user + delete pending cùng lúc
+
+---
+
+## 24 Path Alias @/ — Cấu Hình Đường Dẫn Tuyệt Đối
+
+Thay vì import kiểu `../../common/exceptions`, dùng `@/common/exceptions` cho gọn hơn.
+
+- **Cấu hình trong `tsconfig.json`:**
+```json
+  {
+    "compilerOptions": {
+      "baseUrl": "./",
+      "paths": {
+        "@/*": ["src/*"]
+      }
+    }
+  }
+```
+
+- **Nếu dùng với NestJS CLI build (webpack), cũng cần cấu hình trong `nest-cli.json`:**
+```json
+  {
+    "compilerOptions": {
+      "webpack": false,
+      "plugins": [],
+      "assets": [],
+      "deleteOutDir": true
+    }
+  }
+```
+
+- **Nếu build ra JS và chạy trực tiếp** (không qua ts-node), cần install thêm `tsconfig-paths`:
+```bash
+  pnpm add tsconfig-paths
+```
+và thêm vào `package.json` scripts:
+```json
+  "start:prod": "node -r tsconfig-paths/register dist/main"
+```
+
+**Key Points:**
+- `@/` map sang `src/` — tất cả import tuyệt đối bắt đầu từ thư mục `src`
+- Giúp tránh import kiểu `../../../` khó đọc khi file nằm sâu trong thư mục

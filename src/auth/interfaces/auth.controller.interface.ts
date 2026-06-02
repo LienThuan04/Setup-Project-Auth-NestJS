@@ -10,6 +10,8 @@ import type {
   ILoginDto,
   IVerifyEmailDto,
   IChangePasswordVerifyDto,
+  IResetPasswordDto,
+  IPasswordResetResult,
 } from '@/auth/interfaces/auth.types';
 
 export interface IAuthController {
@@ -20,7 +22,8 @@ export interface IAuthController {
   refreshToken(res: Response, req: Request): Promise<IApiResponse<ILoginResult>>;
   getProfile(user: ISanitizedUser): Promise<IApiResponse<{ user: ISanitizedUser }>>;
   changePasswordWithOtp(dto: IVerifyEmailDto): Promise<IApiResponse<{ otpExpire: string }>>;
-  verifyChangePasswordOtp(dto: IChangePasswordVerifyDto): Promise<IApiResponse<ISanitizedUser>>;
+  verifyChangePasswordOtp(dto: IChangePasswordVerifyDto): Promise<IApiResponse<IPasswordResetResult>>;
+  resetPassword(dto: IResetPasswordDto): Promise<IApiResponse<ISanitizedUser>>;
   logout(res: Response, req: Request, user: ISanitizedUser): Promise<IApiResponse<{ result: boolean }>>;
   logoutAll(res: Response, user: ISanitizedUser): Promise<IApiResponse<{ result: boolean }>>;
   googleAuth(): void;

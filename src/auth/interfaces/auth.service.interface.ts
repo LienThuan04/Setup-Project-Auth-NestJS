@@ -8,13 +8,14 @@ import type {
   IRegisterResult,
   ILocalValidateResult,
   IOtpGenerationResult,
-  IOtpVerifyResult,
   IUserUpdateOtpRequestResult,
   IRegisterDto,
   IVerifyRegisterOtpDto,
   IResendRegisterOtpDto,
   IVerifyEmailDto,
   IChangePasswordVerifyDto,
+  IResetPasswordDto,
+  IPasswordResetResult,
 } from '@/auth/interfaces/auth.types';
 
 export interface IAuthService {
@@ -22,7 +23,8 @@ export interface IAuthService {
   verifyRegisterOtp(dto: IVerifyRegisterOtpDto): Promise<ISanitizedUser>;
   resendRegisterOtp(dto: IResendRegisterOtpDto): Promise<IRegisterResult>;
   sendChangePasswordOtp(dto: IVerifyEmailDto): Promise<IRegisterResult>;
-  verifyChangePasswordOtp(dto: IChangePasswordVerifyDto): Promise<ISanitizedUser>;
+  verifyChangePasswordOtp(dto: IChangePasswordVerifyDto): Promise<IPasswordResetResult>;
+  resetPassword(dto: IResetPasswordDto): Promise<ISanitizedUser>;
   validateUser(userNameOrEmail: string, password: string): Promise<ILocalValidateResult | null>;
   login(user: ISanitizedUser, res: Response, deviceId: string): Promise<ILoginResult>;
   refreshToken(oldCookieRefreshToken: string, res: Response): Promise<ILoginResult>;
@@ -39,9 +41,14 @@ export interface ITokenService {
 
 export interface IOtpService {
   generate(): Promise<IOtpGenerationResult>;
-  checkCooldown(email: string): Promise<void>;
-  getValidPending(email: string, purpose: string): Promise<IOtpVerifyResult>;
-  verify(email: string, otp: string, purpose: string): Promise<IOtpVerifyResult>;
+  assertFormat(otp: string): void;
+  assertNoCooldown(resendAfter: Date | null | undefined): void;
+  verify(
+    otp: string,
+    record: { otpHash: string; otpExpiresAt: Date; attemptCount: number },
+    onCleanup: () => Promise<void>,
+    onIncrementAttempt: () => Promise<number>,
+  ): Promise<void>;
 }
 
 export interface IRegisterService {
@@ -52,7 +59,8 @@ export interface IRegisterService {
 
 export interface IPasswordService {
   sendOtp(dto: IVerifyEmailDto): Promise<IRegisterResult>;
-  verifyAndChange(dto: IChangePasswordVerifyDto): Promise<ISanitizedUser>;
+  verifyOtp(dto: IChangePasswordVerifyDto): Promise<IPasswordResetResult>;
+  resetPassword(dto: IResetPasswordDto): Promise<ISanitizedUser>;
 }
 
 export interface IGoogleService {

@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '@/prisma/prisma.service';
 import { comparePassword, generatePasswordHash } from '@/lib/bcrypt/bcrypt';
 import { generateNumericOtp } from '@/common/otp/generate-otp';
 import { ConflictException } from '@/common/exceptions/app.exception';
 import ms from 'ms';
 import type { IOtpService } from '@/auth/interfaces/auth.service.interface';
+import type { IOtpGenerationResult } from '@/auth/interfaces/auth.types';
 
 @Injectable()
 export class OtpService implements IOtpService {
@@ -15,90 +15,80 @@ export class OtpService implements IOtpService {
     private readonly otpMaxAttempts: number;
     private readonly otpResendCooldown: string;
 
-    constructor(
-        private readonly prismaService: PrismaService,
-        private readonly configService: ConfigService,
-    ) {
+    constructor(private readonly configService: ConfigService) {
         this.saltRounds = Number(this.configService.get('BCRYPT_SALT_ROUNDS') || '10');
         this.otpExpire = this.configService.get('OTP_EXPIRE')!;
         this.otpLength = Number(this.configService.get('OTP_LENGTH'));
         this.otpMaxAttempts = Number(this.configService.get('OTP_MAX_ATTEMPTS'));
         this.otpResendCooldown = this.configService.get('OTP_RESEND_COOLDOWN')!;
-        // Validate critical configurations
-        if (!this.otpExpire || this.otpExpire.trim() === '') {
-            throw new Error('OTP_EXPIRE is not defined in environment variables');
-        }
-        if (!this.otpLength || !Number.isInteger(this.otpLength) || this.otpLength < 6) {
-            throw new Error('OTP_LENGTH is not defined or must be an integer >= 6');
-        }
-        if (!this.otpMaxAttempts || !Number.isInteger(this.otpMaxAttempts) || this.otpMaxAttempts <= 0) {
-            throw new Error('OTP_MAX_ATTEMPTS is not defined or must be a positive integer in environment variables');
-        }
-        if (!this.otpResendCooldown || this.otpResendCooldown.trim() === '') {
-            throw new Error('OTP_RESEND_COOLDOWN is not defined in environment variables');
-        }
+
+        if (!this.otpExpire?.trim()) throw new Error('OTP_EXPIRE is not defined');
+        if (!Number.isInteger(this.otpLength) || this.otpLength < 6) throw new Error('OTP_LENGTH must be an integer >= 6');
+        if (!Number.isInteger(this.otpMaxAttempts) || this.otpMaxAttempts <= 0) throw new Error('OTP_MAX_ATTEMPTS must be a positive integer');
+        if (!this.otpResendCooldown?.trim()) throw new Error('OTP_RESEND_COOLDOWN is not defined');
     }
 
-    async generate(): Promise<{ otp: string; otpHash: string; otpExpiresAt: Date; resendAfter: Date }> {
+    async generate(): Promise<IOtpGenerationResult> {
         const otp = generateNumericOtp(this.otpLength);
         const otpHash = await generatePasswordHash(otp, this.saltRounds);
         return {
             otp,
             otpHash,
             otpExpiresAt: new Date(Date.now() + ms(this.otpExpire as ms.StringValue)),
-            resendAfter: new Date(Date.now() + ms(this.otpResendCooldown as ms.StringValue))
+            resendAfter: new Date(Date.now() + ms(this.otpResendCooldown as ms.StringValue)),
         };
     }
 
-    async checkCooldown(email: string): Promise<void> {
-        const now = new Date();
-        const pending = await this.prismaService.pendingRegistration.findUnique({ where: { email } });
-
-        if (pending?.resendAfter && pending.resendAfter > now) {
-            const remainingSeconds = Math.ceil((pending.resendAfter.getTime() - now.getTime()) / 1000);
-            throw new ConflictException(`Please wait ${remainingSeconds} seconds before requesting a new OTP.`);
-        }
-    }
-
-    async getValidPending(email: string, purpose: string) {
-        const pending = await this.prismaService.pendingRegistration.findUnique({ where: { email } });
-
-        if (!pending) {
-            throw new ConflictException(`No ${purpose} found for this email`);
-        }
-        if (pending.otpExpiresAt <= new Date()) {
-            await this.prismaService.pendingRegistration.delete({ where: { email } });
-            throw new ConflictException('OTP has expired');
-        }
-        if (pending.attemptCount >= this.otpMaxAttempts) {
-            await this.prismaService.pendingRegistration.delete({ where: { email } });
-            throw new ConflictException(`Too many incorrect attempts. Please request a new OTP after ${this.otpExpire}`);
-        }
-
-        return pending;
-    }
-
-    async verify(email: string, otp: string, purpose: string) {
+    // Validate OTP format — throws if wrong length
+    assertFormat(otp: string): void {
         if (otp.length !== this.otpLength) {
             throw new ConflictException(`OTP must be exactly ${this.otpLength} digits`);
         }
+    }
 
-        const pending = await this.getValidPending(email, purpose);
-        const isValid = await comparePassword(otp, pending.otpHash);
+    // Check cooldown from a Date value — throws if still in cooldown window
+    assertNoCooldown(resendAfter: Date | null | undefined): void {
+        const now = new Date();
+        if (resendAfter && resendAfter > now) {
+            const remaining = Math.ceil((resendAfter.getTime() - now.getTime()) / 1000);
+            throw new ConflictException(`Please wait ${remaining} seconds before requesting a new OTP.`);
+        }
+    }
 
-        if (!isValid) {
-            const updated = await this.prismaService.pendingRegistration.update({
-                where: { email },
-                data: { attemptCount: { increment: 1 } }
-            });
+    /**
+     * Verify an OTP against a stored record. Pure logic — no DB access.
+     * The caller provides two callbacks to handle DB side effects:
+     *
+     * @param onCleanup          — called when expired or locked: should DELETE the pending record
+     * @param onIncrementAttempt — called on wrong OTP: should INCREMENT attemptCount and return the new value
+     */
+    async verify(
+        otp: string,
+        record: { otpHash: string; otpExpiresAt: Date; attemptCount: number },
+        onCleanup: () => Promise<void>,
+        onIncrementAttempt: () => Promise<number>,
+    ): Promise<void> {
+        this.assertFormat(otp);
 
-            const remainingAttempts = this.otpMaxAttempts - updated.attemptCount;
-            if (remainingAttempts <= 0) {
-                throw new ConflictException('OTP has been locked due to too many incorrect attempts.');
-            }
-            throw new ConflictException(`Invalid OTP. You have ${remainingAttempts} attempt(s) remaining.`);
+        if (record.otpExpiresAt <= new Date()) {
+            await onCleanup();
+            throw new ConflictException('OTP has expired');
         }
 
-        return pending;
+        if (record.attemptCount >= this.otpMaxAttempts) {
+            await onCleanup();
+            throw new ConflictException('Too many incorrect attempts. Please request a new OTP.');
+        }
+
+        const isValid = await comparePassword(otp, record.otpHash);
+        if (!isValid) {
+            const newCount = await onIncrementAttempt();
+            const remaining = this.otpMaxAttempts - newCount;
+            if (remaining <= 0) {
+                await onCleanup();
+                throw new ConflictException('OTP has been locked due to too many incorrect attempts.');
+            }
+            throw new ConflictException(`Invalid OTP. You have ${remaining} attempt(s) remaining.`);
+        }
     }
 }
