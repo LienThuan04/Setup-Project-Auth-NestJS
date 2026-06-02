@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthService } from '@/auth/auth.service';
 import { Public } from '@/common/decorators/metadata';
-import { LoginDto, RegisterDto, VerifyRegisterOtpDto, ResendRegisterOtpDto, VerifyEmailDto, ChangePasswordVerifyDto } from '@/auth/dto/create-auth.dto';
+import { LoginDto, RegisterDto, VerifyRegisterOtpDto, ResendRegisterOtpDto, VerifyEmailDto, ChangePasswordVerifyDto, ResetPasswordDto } from '@/auth/dto/create-auth.dto';
 import type { Request, Response } from 'express';
 import { UserGoogle, User, DeviceId } from '@/common/decorators/user.decorator';
 import type { GoogleUser } from '@/auth/passport/google/google-user.interface';
@@ -120,12 +120,24 @@ export class AuthController implements IAuthController {
     
     @Public()
     @Post('change-password/verify-otp')
-    @ApiOperation({ summary: 'Verify OTP and change password for the currently authenticated user' }) // Add Swagger documentation for this endpoint
+    @ApiOperation({ summary: 'Verify OTP for password reset — returns a short-lived reset token to use in /change-password/reset' })
     async verifyChangePasswordOtp(@Body() changePasswordVerifyDto: ChangePasswordVerifyDto) {
-        const user = await this.authService.verifyChangePasswordOtp(changePasswordVerifyDto);
+        const result = await this.authService.verifyChangePasswordOtp(changePasswordVerifyDto);
         return {
             statusCode: 200,
-            message: 'Password changed successfully',
+            message: `OTP verified. Use the reset token to set your new password within ${result.expiresIn}.`,
+            data: result,
+        };
+    }
+
+    @Public()
+    @Post('change-password/reset')
+    @ApiOperation({ summary: 'Set new password using the reset token received after OTP verification' })
+    async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+        const user = await this.authService.resetPassword(resetPasswordDto);
+        return {
+            statusCode: 200,
+            message: 'Password changed successfully.',
             data: user,
         };
     }

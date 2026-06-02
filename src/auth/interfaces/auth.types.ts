@@ -66,15 +66,6 @@ export interface IOtpGenerationResult {
   resendAfter: Date;
 }
 
-export interface IOtpVerifyResult {
-  email: string;
-  userName: string;
-  passwordHash: string;
-  otpHash: string;
-  otpExpiresAt: Date;
-  attemptCount: number;
-}
-
 export interface IUserUpdateOtpRequestResult {
   skipOtp: boolean;
   message: string;
@@ -110,5 +101,14 @@ export interface IVerifyEmailDto {
 export interface IChangePasswordVerifyDto {
   email: string;
   otp: string;
+}
+
+export interface IResetPasswordDto {
+  resetPassToken: string;
   newPassword: string;
+}
+
+export interface IPasswordResetResult {
+  resetPassToken: string;
+  expiresIn: string;
 }

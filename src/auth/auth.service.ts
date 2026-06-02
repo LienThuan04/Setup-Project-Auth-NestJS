@@ -3,7 +3,7 @@ import { UsersService } from '@/users/users.service';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { RegisterDto, VerifyRegisterOtpDto, ResendRegisterOtpDto, VerifyEmailDto, ChangePasswordVerifyDto } from '@/auth/dto/create-auth.dto';
+import { RegisterDto, VerifyRegisterOtpDto, ResendRegisterOtpDto, VerifyEmailDto, ChangePasswordVerifyDto, ResetPasswordDto } from '@/auth/dto/create-auth.dto';
 import type { GoogleUser } from '@/auth/passport/google/google-user.interface';
 import { comparePassword } from '@/lib/bcrypt/bcrypt';
 import type { Response } from 'express';
@@ -90,7 +90,7 @@ export class AuthService implements IAuthService {
 
     async verifyChangePasswordOtp(changePasswordVerifyDto: ChangePasswordVerifyDto) {
         try {
-            return await this.passwordService.verifyAndChange(changePasswordVerifyDto);
+            return await this.passwordService.verifyOtp(changePasswordVerifyDto);
         } catch (error: any) {
             if (error instanceof ConflictException ||
                 error instanceof NotFoundException ||
@@ -98,6 +98,19 @@ export class AuthService implements IAuthService {
                 throw error;
             }
             throw new InternalServerException(`Failed to verify change password OTP: ${error.message}`);
+        }
+    }
+
+    async resetPassword(resetPasswordDto: ResetPasswordDto) {
+        try {
+            return await this.passwordService.resetPassword(resetPasswordDto);
+        } catch (error: any) {
+            if (error instanceof ConflictException ||
+                error instanceof NotFoundException ||
+                error instanceof ValidationException) {
+                throw error;
+            }
+            throw new InternalServerException(`Failed to reset password: ${error.message}`);
         }
     }
 
