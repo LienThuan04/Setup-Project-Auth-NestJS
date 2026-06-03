@@ -20,7 +20,6 @@ export function SecuritySettingsCard({ email: initialEmail = '' }: SecuritySetti
   const [step, setStep] = useState<Step>('request');
   const [email, setEmail] = useState(initialEmail);
   const [otp, setOtp] = useState('');
-  const [resetPassToken, setResetPassToken] = useState('');
   const [tokenExpiresIn, setTokenExpiresIn] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -33,7 +32,6 @@ export function SecuritySettingsCard({ email: initialEmail = '' }: SecuritySetti
   const reset = () => {
     setStep('request');
     setOtp('');
-    setResetPassToken('');
     setTokenExpiresIn('');
     setNewPassword('');
     setConfirmPassword('');
@@ -62,8 +60,7 @@ export function SecuritySettingsCard({ email: initialEmail = '' }: SecuritySetti
     setIsLoading(true);
     try {
       const res = await authAPI.changePasswordVerifyOtp({ email, otp });
-      const { resetPassToken: token, expiresIn } = res.data.data;
-      setResetPassToken(token);
+      const { expiresIn } = res.data.data;
       setTokenExpiresIn(expiresIn);
       setStep('set-password');
       toast.success(`OTP verified! You have ${expiresIn} to set your new password.`);
@@ -87,13 +84,13 @@ export function SecuritySettingsCard({ email: initialEmail = '' }: SecuritySetti
     }
     setIsLoading(true);
     try {
-      await authAPI.changePasswordReset({ resetPassToken, newPassword });
+      await authAPI.changePasswordReset({ newPassword });
       toast.success('Password changed successfully!');
       reset();
     } catch (err: any) {
       toast.error(err?.response?.data?.message ?? 'Failed to change password');
-      // Nếu token hết hạn → quay về bước 1
-      if (err?.response?.data?.code === 'CONFLICT') {
+      // Nếu cookie reset token hết hạn → quay về bước 1
+      if (err?.response?.status === 401 || err?.response?.data?.code === 'CONFLICT') {
         reset();
         toast.error('Reset session expired. Please start over.');
       }
