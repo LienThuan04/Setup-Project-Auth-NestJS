@@ -16,15 +16,20 @@ import type { IAuthController } from '@/auth/interfaces/auth.controller.interfac
 @Controller('auth')
 export class AuthController implements IAuthController {
     private readonly refreshTokenName: string;
+    private readonly resetPassNameToken: string;
     private readonly urlClient: string;
     constructor(
         private readonly authService: AuthService,
         private readonly configService: ConfigService
     ) {
         this.refreshTokenName = this.configService.get<string>('NAME_COOKIE_REFRESH_TOKEN_BROWSER')!;
+        this.resetPassNameToken = this.configService.get<string>('NAME_COOKIE_RESET_PASS_TOKEN')!;
         this.urlClient = this.configService.get<string>('URL_CLIENT')!;
         if (!this.refreshTokenName || this.refreshTokenName.trim() === '') {
             throw new Error('Refresh token cookie name is not defined in environment variables');
+        }
+        if (!this.resetPassNameToken || this.resetPassNameToken.trim() === '') {
+            throw new Error('Reset password token cookie name is not defined in environment variables');
         }
         if (!this.urlClient || this.urlClient.trim() === '') {
             throw new Error('URL_CLIENT is not defined in environment variables');
@@ -121,8 +126,8 @@ export class AuthController implements IAuthController {
     @Public()
     @Post('change-password/verify-otp')
     @ApiOperation({ summary: 'Verify OTP for password reset — returns a short-lived reset token to use in /change-password/reset' })
-    async verifyChangePasswordOtp(@Body() changePasswordVerifyDto: ChangePasswordVerifyDto) {
-        const result: IPasswordResetResult = await this.authService.verifyChangePasswordOtp(changePasswordVerifyDto);
+    async verifyChangePasswordOtp(@Res({ passthrough: true }) res: Response, @Body() changePasswordVerifyDto: ChangePasswordVerifyDto) {
+        const result: IPasswordResetResult = await this.authService.verifyChangePasswordOtp(res, changePasswordVerifyDto);
         return {
             statusCode: 200,
             message: `OTP verified. Use the reset token to set your new password within ${result.expiresIn}.`,
@@ -133,8 +138,12 @@ export class AuthController implements IAuthController {
     @Public()
     @Post('change-password/reset')
     @ApiOperation({ summary: 'Set new password using the reset token received after OTP verification' })
-    async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-        const user = await this.authService.resetPassword(resetPasswordDto);
+    async resetPassword(@Req() req: Request, @Res({ passthrough: true }) res: Response, @Body() resetPasswordDto: ResetPasswordDto) {
+        const cookieResetToken = req.cookies[this.resetPassNameToken] as string;
+        if (!cookieResetToken) {
+            throw new UnauthorizedException('Reset password token is missing in cookies');
+        }
+        const user = await this.authService.resetPassword(cookieResetToken, res, resetPasswordDto);
         return {
             statusCode: 200,
             message: 'Password changed successfully.',
