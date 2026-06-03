@@ -86,7 +86,11 @@ export class TokenService implements ITokenService {
         if (!result) {
             throw new ValidationException('Failed to delete session');
         }
-        res.clearCookie(this.refreshTokenName);
+        res.clearCookie(this.refreshTokenName, {
+            httpOnly: true,
+            secure: true,
+            sameSite: this.cookieSameSite
+        });
         return result;
     }
 
