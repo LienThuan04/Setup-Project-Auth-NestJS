@@ -105,11 +105,9 @@ export interface IChangePasswordVerifyDto {
 }
 
 export interface IResetPasswordDto {
-  resetPassToken: string;
   newPassword: string;
 }
 
 export interface IPasswordResetResult {
-  resetPassToken: string;
   expiresIn: string;
 }
