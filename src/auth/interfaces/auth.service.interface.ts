@@ -23,8 +23,8 @@ export interface IAuthService {
   verifyRegisterOtp(dto: IVerifyRegisterOtpDto): Promise<ISanitizedUser>;
   resendRegisterOtp(dto: IResendRegisterOtpDto): Promise<IRegisterResult>;
   sendChangePasswordOtp(dto: IVerifyEmailDto): Promise<IRegisterResult>;
-  verifyChangePasswordOtp(dto: IChangePasswordVerifyDto): Promise<IPasswordResetResult>;
-  resetPassword(dto: IResetPasswordDto): Promise<ISanitizedUser>;
+  verifyChangePasswordOtp(res: Response, dto: IChangePasswordVerifyDto): Promise<IPasswordResetResult>;
+  resetPassword(cookieResetToken: string, res: Response, dto: IResetPasswordDto): Promise<ISanitizedUser>;
   validateUser(userNameOrEmail: string, password: string): Promise<ILocalValidateResult | null>;
   login(user: ISanitizedUser, res: Response, deviceId: string): Promise<ILoginResult>;
   refreshToken(oldCookieRefreshToken: string, res: Response): Promise<ILoginResult>;
@@ -59,8 +59,8 @@ export interface IRegisterService {
 
 export interface IPasswordService {
   sendOtp(dto: IVerifyEmailDto): Promise<IRegisterResult>;
-  verifyOtp(dto: IChangePasswordVerifyDto): Promise<IPasswordResetResult>;
-  resetPassword(dto: IResetPasswordDto): Promise<ISanitizedUser>;
+  verifyOtp(res: Response, dto: IChangePasswordVerifyDto): Promise<IPasswordResetResult>;
+  resetPassword(cookieResetToken: string, res: Response, dto: IResetPasswordDto): Promise<ISanitizedUser>;
 }
 
 export interface IGoogleService {
