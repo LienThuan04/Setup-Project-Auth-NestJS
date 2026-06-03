@@ -78,7 +78,7 @@ export class TokenService implements ITokenService {
             console.error('Decoded refresh token payload is invalid:', decodedRefreshToken);
             throw new ValidationException('Invalid refresh token payload');
         }
-        // ✅ So sánh userId từ token với user đang logout
+        // So sánh userId từ token với user đang logout
         if (decodedRefreshToken.userId !== userId) {
             throw new ValidationException('Token does not belong to this user');
         }
@@ -86,7 +86,11 @@ export class TokenService implements ITokenService {
         if (!result) {
             throw new ValidationException('Failed to delete session');
         }
-        res.clearCookie(this.refreshTokenName);
+        res.clearCookie(this.refreshTokenName, {
+            httpOnly: true,
+            secure: true,
+            sameSite: this.cookieSameSite,
+        });
         return result;
     }
 
@@ -95,8 +99,11 @@ export class TokenService implements ITokenService {
         if (!result) {
             throw new ValidationException('Failed to delete sessions');
         }
-        res.clearCookie(this.refreshTokenName);
+        res.clearCookie(this.refreshTokenName, {
+            httpOnly: true,
+            secure: true,
+            sameSite: this.cookieSameSite,
+        });
         return result;
     }
-
 }

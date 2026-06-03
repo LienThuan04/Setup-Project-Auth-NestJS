@@ -21,12 +21,12 @@ export class UserUpdateOtpService implements IUserUpdateOtpService {
 
     /**
      * Bước 1: Nhận yêu cầu update, phân tích thay đổi và gửi OTP phù hợp.
-     * 
+     *
      * Luồng xử lý:
      * - Chỉ description thay đổi → cập nhật ngay, không OTP
      * - Email thay đổi → gửi OTP đến EMAIL MỚI
      * - Chỉ username thay đổi → gửi OTP đến EMAIL CŨ
-     * 
+     *
      * @returns { changedFields, targetEmail } - thông tin để frontend hiển thị
      */
     async requestUpdate(userId: string, dto: RequestUpdateUserOtpDto): Promise<IUserUpdateOtpRequestResult> {
@@ -172,7 +172,7 @@ export class UserUpdateOtpService implements IUserUpdateOtpService {
             },
         );
 
-        // OTP đúng → áp dụng thay đổi trong transaction
+        // OTP đúng → áp dụng thay đổi
         const updateData: Record<string, string> = {};
         if (pending.newEmail) updateData.email = pending.newEmail;
         if (pending.newUserName) updateData.userName = pending.newUserName;

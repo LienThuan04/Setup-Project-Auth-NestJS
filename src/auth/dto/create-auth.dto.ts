@@ -73,10 +73,12 @@ export class VerifyEmailDto {
 }
 
 export class ChangePasswordVerifyDto {
+    @IsNotEmpty({ message: 'Email must not be empty' })
     @ApiProperty({ example: 'example@gmail.com', description: 'The email of the user' })
     @IsEmail({}, { message: 'Email must be a valid email address' })
     email!: string;
 
+    @IsNotEmpty({ message: 'OTP must not be empty' })
     @ApiProperty({ example: '123456', description: 'The OTP code sent to email' })
     @IsString({ message: 'OTP must be a string' })
     @Length(6, 6, { message: 'OTP must be exactly 6 characters long' })
@@ -84,12 +86,8 @@ export class ChangePasswordVerifyDto {
 }
 
 export class ResetPasswordDto {
-    @ApiProperty({ example: 'eyJhbGci...', description: 'Reset password token received after OTP verification' })
-    @IsNotEmpty({ message: 'Reset password token must not be empty' })
-    @IsString({ message: 'Reset password token must be a string' })
-    resetPassToken!: string;
-
     @ApiProperty({ example: 'newpassword123', description: 'The new password' })
+    @IsNotEmpty({ message: 'New password must not be empty' })
     @IsString({ message: 'New password must be a string' })
     @MinLength(6, { message: 'New password must be at least 6 characters long' })
     @MaxLength(50, { message: 'New password must be at most 50 characters long' })

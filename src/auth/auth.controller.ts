@@ -10,29 +10,34 @@ import { GoogleAuthGuard } from '@/lib/passport/google-auth.guard';
 import { ConfigService } from '@nestjs/config';
 import { ApiOperation } from '@nestjs/swagger';
 import { UnauthorizedException, InternalServerException, NotFoundException } from '@/common/exceptions/app.exception';
-import type { ISanitizedUser } from '@/auth/interfaces/auth.types';
+import type { IPasswordResetResult, ISanitizedUser } from '@/auth/interfaces/auth.types';
 import type { IAuthController } from '@/auth/interfaces/auth.controller.interface';
 
 @Controller('auth')
 export class AuthController implements IAuthController {
     private readonly refreshTokenName: string;
+    private readonly resetPassNameToken: string;
     private readonly urlClient: string;
     constructor(
         private readonly authService: AuthService,
         private readonly configService: ConfigService
     ) {
         this.refreshTokenName = this.configService.get<string>('NAME_COOKIE_REFRESH_TOKEN_BROWSER')!;
+        this.resetPassNameToken = this.configService.get<string>('NAME_COOKIE_RESET_PASS_TOKEN')!;
         this.urlClient = this.configService.get<string>('URL_CLIENT')!;
         if (!this.refreshTokenName || this.refreshTokenName.trim() === '') {
             throw new Error('Refresh token cookie name is not defined in environment variables');
+        }
+        if (!this.resetPassNameToken || this.resetPassNameToken.trim() === '') {
+            throw new Error('Reset password token cookie name is not defined in environment variables');
         }
         if (!this.urlClient || this.urlClient.trim() === '') {
             throw new Error('URL_CLIENT is not defined in environment variables');
         }
     }
 
-    @Public() // Mark this route as public, allowing access without JWT authentication.
-    @ApiOperation({ summary: 'Register a new user' }) // Add Swagger documentation for this endpoint
+    @Public()
+    @ApiOperation({ summary: 'Register a new user' })
     @Post('register')
     async register(@Body() registerDto: RegisterDto) {
         const result = await this.authService.registerWithOTP(registerDto);
@@ -56,8 +61,8 @@ export class AuthController implements IAuthController {
     }
 
     @Public()
-    @UseGuards(LocalAuthGuard) // Apply the local authentication guard to this route
-    @ApiOperation({ summary: 'Login a user for a session and cookie management' }) // Add Swagger documentation for this endpoint
+    @UseGuards(LocalAuthGuard)
+    @ApiOperation({ summary: 'Login a user for a session and cookie management' })
     @Post('login')
     async login(@Res({ passthrough: true }) res: Response, @User() user: ISanitizedUser, @Body() _loginDto: LoginDto, @DeviceId() deviceId: string) {
         const result = await this.authService.login(user, res, deviceId);
@@ -72,7 +77,7 @@ export class AuthController implements IAuthController {
     }
 
     @Public()
-    @ApiOperation({ summary: 'Refresh access token using a valid refresh token stored in cookies' }) // Add Swagger documentation for this endpoint
+    @ApiOperation({ summary: 'Refresh access token using a valid refresh token stored in cookies' })
     @Post('refresh')
     async refreshToken(@Res({ passthrough: true }) res: Response, @Req() req: Request) {
         const oldCookieRefreshToken = req.cookies[this.refreshTokenName];
@@ -91,7 +96,7 @@ export class AuthController implements IAuthController {
     }
 
     @Get('profile')
-    @ApiOperation({ summary: 'Get the profile of the currently authenticated user' }) // Add Swagger documentation for this endpoint
+    @ApiOperation({ summary: 'Get the profile of the currently authenticated user' })
     async getProfile(@User() user: ISanitizedUser) {
         try {
             return {
@@ -108,7 +113,7 @@ export class AuthController implements IAuthController {
 
     @Public()
     @Post('change-password/send-otp')
-    @ApiOperation({ summary: 'Change password for the currently authenticated user' }) // Add Swagger documentation for this endpoint
+    @ApiOperation({ summary: 'Change password for the currently authenticated user' })
     async changePasswordWithOtp(@Body() verifyEmailDto: VerifyEmailDto) {
         const result = await this.authService.sendChangePasswordOtp(verifyEmailDto);
         return {
@@ -117,12 +122,12 @@ export class AuthController implements IAuthController {
             data: result,
         };
     }
-    
+
     @Public()
     @Post('change-password/verify-otp')
     @ApiOperation({ summary: 'Verify OTP for password reset — returns a short-lived reset token to use in /change-password/reset' })
-    async verifyChangePasswordOtp(@Body() changePasswordVerifyDto: ChangePasswordVerifyDto) {
-        const result = await this.authService.verifyChangePasswordOtp(changePasswordVerifyDto);
+    async verifyChangePasswordOtp(@Res({ passthrough: true }) res: Response, @Body() changePasswordVerifyDto: ChangePasswordVerifyDto) {
+        const result: IPasswordResetResult = await this.authService.verifyChangePasswordOtp(res, changePasswordVerifyDto);
         return {
             statusCode: 200,
             message: `OTP verified. Use the reset token to set your new password within ${result.expiresIn}.`,
@@ -133,8 +138,12 @@ export class AuthController implements IAuthController {
     @Public()
     @Post('change-password/reset')
     @ApiOperation({ summary: 'Set new password using the reset token received after OTP verification' })
-    async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
-        const user = await this.authService.resetPassword(resetPasswordDto);
+    async resetPassword(@Req() req: Request, @Res({ passthrough: true }) res: Response, @Body() resetPasswordDto: ResetPasswordDto) {
+        const cookieResetToken = req.cookies[this.resetPassNameToken] as string;
+        if (!cookieResetToken) {
+            throw new UnauthorizedException('Reset password token is missing in cookies');
+        }
+        const user = await this.authService.resetPassword(cookieResetToken, res, resetPasswordDto);
         return {
             statusCode: 200,
             message: 'Password changed successfully.',
@@ -143,7 +152,7 @@ export class AuthController implements IAuthController {
     }
 
     @Post('logout')
-    @ApiOperation({ summary: 'Logout the currently authenticated user' }) // Add Swagger documentation for this endpoint
+    @ApiOperation({ summary: 'Logout the currently authenticated user' })
     async logout(@Res({ passthrough: true }) res: Response, @Req() req: Request, @User() user: ISanitizedUser) {
         const oldCookieRefreshToken = req.cookies[this.refreshTokenName];
         if (!oldCookieRefreshToken) {
@@ -158,7 +167,7 @@ export class AuthController implements IAuthController {
     }
 
     @Post('logout-all')
-    @ApiOperation({ summary: 'Logout the currently authenticated user from all devices' }) // Add Swagger documentation for this endpoint
+    @ApiOperation({ summary: 'Logout the currently authenticated user from all devices' })
     async logoutAll(@Res({ passthrough: true }) res: Response, @User() user: ISanitizedUser) {
         const result: boolean = await this.authService.logoutAll(user, res);
         return {
@@ -182,21 +191,11 @@ export class AuthController implements IAuthController {
     @ApiOperation({ summary: 'Google Auth Callback' })
     async googleAuthRedirect(@UserGoogle() googleUser: GoogleUser, @DeviceId() deviceId: string, @Res({ passthrough: true }) res: Response) {
         const result = await this.authService.googleLogin(googleUser, res, deviceId);
-        // Sau khi đăng nhập thành công, bạn thường sẽ muốn redirect người dùng về giao diện Frontend
-        // Ví dụ: return res.redirect('http://localhost:3000/dashboard');
         const data = {
             accessToken: result.accessToken,
             user: result.user,
         }
         const encodedData = Buffer.from(JSON.stringify(data)).toString('base64');
         res.redirect(`${this.urlClient}/google/callback?data=${encodeURIComponent(encodedData)}`);
-        // return {
-        //     statusCode: 200,
-        //     message: 'Google Login successful',
-        //     data: {
-        //         accessToken: result.accessToken,
-        //         user: result.user,
-        //     },
-        // };
     }
 }

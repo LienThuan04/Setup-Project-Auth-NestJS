@@ -61,6 +61,8 @@ export class RegisterService implements IRegisterService {
         // Handle a different pending that is occupying the same username
         if (pendingByUsername && pendingByUsername.email !== email) {
             if (pendingByUsername.otpExpiresAt > now) {
+                this.otpService.assertNoCooldown(pendingByUsername.resendAfter);
+                // Still within cooldown — username is temporarily taken
                 const remaining = pendingByUsername.resendAfter
                     ? Math.ceil((pendingByUsername.resendAfter.getTime() - now.getTime()) / 1000)
                     : 0;

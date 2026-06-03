@@ -88,9 +88,9 @@ export class AuthService implements IAuthService {
         }
     }
 
-    async verifyChangePasswordOtp(changePasswordVerifyDto: ChangePasswordVerifyDto) {
+    async verifyChangePasswordOtp(res: Response, changePasswordVerifyDto: ChangePasswordVerifyDto) {
         try {
-            return await this.passwordService.verifyOtp(changePasswordVerifyDto);
+            return await this.passwordService.verifyOtp(res, changePasswordVerifyDto);
         } catch (error: any) {
             if (error instanceof ConflictException ||
                 error instanceof NotFoundException ||
@@ -101,9 +101,9 @@ export class AuthService implements IAuthService {
         }
     }
 
-    async resetPassword(resetPasswordDto: ResetPasswordDto) {
+    async resetPassword(cookieResetToken: string, res: Response, resetPasswordDto: ResetPasswordDto) {
         try {
-            return await this.passwordService.resetPassword(resetPasswordDto);
+            return await this.passwordService.resetPassword(cookieResetToken, res, resetPasswordDto);
         } catch (error: any) {
             if (error instanceof ConflictException ||
                 error instanceof NotFoundException ||

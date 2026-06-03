@@ -1,9 +1,9 @@
+import { writeFileSync, mkdirSync } from 'fs';
+import { join } from 'path';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { writeFileSync } from 'fs';
 
-//config swagger
 export default class ConfigSwagger {
     public static setup = (app: NestExpressApplication): void => {
         const configService: ConfigService = app.get(ConfigService);
@@ -20,17 +20,21 @@ export default class ConfigSwagger {
             .addSecurityRequirements('access-token')
             .build();
         const documentFactory = () => SwaggerModule.createDocument(app, config, {
-            deepScanRoutes: false, // Automatically scan all routes in the application, including those defined in modules and controllers, to generate comprehensive API documentation.
+            deepScanRoutes: false,
         });
 
-        /* Export swagger.json file to root folder, you can use it for other tools like postman, insomnia, etc. */
-        // const document = documentFactory();
-        // writeFileSync('./swagger.json', JSON.stringify(document, null, 2));
-        // console.log('✅ Swagger JSON exported to swagger.json');
+        const exportJson = configService.get<string>('EXPORT_SWAGGER_API_JSON') === 'true';
+        if (exportJson) {
+            const document = documentFactory();
+            const outputDir = join(process.cwd(), 'docs_API');
+            mkdirSync(outputDir, { recursive: true });
+            writeFileSync(join(outputDir, 'swagger.json'), JSON.stringify(document, null, 2));
+            console.log('Swagger JSON exported to docs_API/swagger.json');
+        }
 
-        SwaggerModule.setup('swagger', app, documentFactory, { //route swagger http://localhost:3000/swagger
+        SwaggerModule.setup('swagger', app, documentFactory, {
             swaggerOptions: {
-                persistAuthorization: true, //keep authorization token after refresh page and f5
+                persistAuthorization: true,
             },
         });
     }
