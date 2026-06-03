@@ -44,12 +44,12 @@ export const authAPI = {
     changePasswordSendOtp: (data: { email: string }) =>
         axiosInstance.post('/auth/change-password/send-otp', data),
 
-    // Bước 2: xác thực OTP — trả về { resetPassToken, expiresIn }
+    // Bước 2: xác thực OTP — server set httpOnly cookie với reset token, trả về { expiresIn }
     changePasswordVerifyOtp: (data: { email: string; otp: string }) =>
         axiosInstance.post('/auth/change-password/verify-otp', data),
 
-    // Bước 3: dùng resetPassToken để đặt mật khẩu mới
-    changePasswordReset: (data: { resetPassToken: string; newPassword: string }) =>
+    // Bước 3: đặt mật khẩu mới — cookie reset token tự gửi nhờ withCredentials
+    changePasswordReset: (data: { newPassword: string }) =>
         axiosInstance.post('/auth/change-password/reset', data),
 
 };

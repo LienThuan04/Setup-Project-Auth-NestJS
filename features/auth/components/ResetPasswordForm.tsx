@@ -33,7 +33,6 @@ export function ResetPasswordForm({
 
   const [step, setStep] = useState<Step>('verify-otp');
   const [otp, setOtp] = useState('');
-  const [resetPassToken, setResetPassToken] = useState('');
   const [tokenExpiresIn, setTokenExpiresIn] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -62,8 +61,7 @@ export function ResetPasswordForm({
     setLoading(true);
     try {
       const res = await authAPI.changePasswordVerifyOtp({ email, otp });
-      const { resetPassToken: token, expiresIn } = res.data.data;
-      setResetPassToken(token);
+      const { expiresIn } = res.data.data;
       setTokenExpiresIn(expiresIn);
       setStep('set-password');
       toast.success(`OTP verified! You have ${expiresIn} to set your new password.`);
@@ -89,15 +87,14 @@ export function ResetPasswordForm({
 
     setLoading(true);
     try {
-      await authAPI.changePasswordReset({ resetPassToken, newPassword });
+      await authAPI.changePasswordReset({ newPassword });
       toast.success('Password changed successfully! Redirecting to login...');
       setTimeout(() => router.push(ROUTES.LOGIN), 1500);
     } catch (error: any) {
       handleApiError(error);
-      // Nếu token hết hạn → quay về bước 1
-      if ((error as any)?.response?.data?.code === 'CONFLICT') {
+      // Nếu cookie reset token hết hạn → quay về bước 1
+      if ((error as any)?.response?.status === 401 || (error as any)?.response?.data?.code === 'CONFLICT') {
         setStep('verify-otp');
-        setResetPassToken('');
         setOtp('');
         toast.error('Reset session expired. Please verify OTP again.');
       }
