@@ -100,6 +100,38 @@ Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 
 # ![NOTE](https://img.shields.io/badge/NOTE-Important-orange) The library materials used for this project are below.
 
+## Table of Contents
+
+| # | Topic |
+|---|---|
+| [1](#1-use-prismaclient-with-db-on-cloud-consoleprismaio-for-nestjs) | Prisma with Cloud DB |
+| [2](#2-configure-swagger-openapi-documentation-see-details-here) | Swagger OpenAPI Documentation |
+| [3](#3-validate-the-data-we-need-to-load-additional-libraries-you-can-refer-to-here) | Validation with class-validator |
+| [4](#4-add-debug-code-to-nestjs-with-visual-code) | Debug Configuration |
+| [5](#5-set-up-authentication-users-for-the-nestjs-passport-library) | Passport Authentication Setup |
+| [6](#6-debug-nestjs-with-visual-code) | Debug with VS Code launch.json |
+| [7](#7-connect-with-supabase-storage-save-image-for-project) | Supabase Storage |
+| [8](#8-login-with-passport-google-oauth20) | Google OAuth2 Login |
+| [9](#9-send-email-with-nodemailer-and-ejs-template) | Email with Nodemailer + EJS |
+| [10](#10-add-redis-cache-with-nestjs-and-prisma) | Redis Cache |
+| [11](#11-password-reset-flow--forgot-password-with-otp) | Password Reset Flow (OTP) |
+| [12](#12-app-configuration-global-prefix-uri-versioning-and-cors) | App Configuration (Prefix, Versioning, CORS) |
+| [13](#13-global-exception-filter--custom-appexception) | Global Exception Filter |
+| [14](#14-global-transform-interceptor--standardize-api-response) | Global Transform Interceptor |
+| [15](#15-global-http-logging-interceptor) | HTTP Logging Interceptor |
+| [16](#16-custom-route-decorators) | Custom Route Decorators |
+| [17](#17-jwtauthguard--global-guard-with-admin-role-check) | JwtAuthGuard |
+| [18](#18-jwt-token-system--access-token--refresh-token--session) | JWT Token System |
+| [19](#19-session-management--device-limit) | Session Management (Device Limit) |
+| [20](#20-cron-jobs--scheduled-tasks-with-nestjsschedule) | Cron Jobs |
+| [21](#21-database-seeding--seed-initial-data-on-startup) | Database Seeding |
+| [22](#22-otp-registration-flow--email-verified-registration) | OTP Registration Flow |
+| [23](#23-otp-profile-update--change-email-or-username-with-otp) | OTP Profile Update |
+| [24](#24-path-alias--absolute-import-configuration) | Path Alias `@/` |
+| [25](#25-typescript-interfaces--complete-reference) | TypeScript Interfaces |
+
+---
+
 ## 1 Use Prisma/client with DB on Cloud [console.prisma.io](https://console.prisma.io/) for NestJS
 
 ```bash
@@ -220,19 +252,19 @@ Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 ```bash
   app.useGlobalPipes(
       new ValidationPipe({
-        whitelist: true, //tự động loại bỏ các thuộc tính không được định nghĩa trong DTOs
-        forbidNonWhitelisted: true, //nếu có thuộc tính không được định nghĩa trong DTO thì sẽ ném ra lỗi
-        transform: true, //tự động chuyển đổi payload thành các instance của lớp DTO
+        whitelist: true, // automatically strip properties not defined in the DTO
+        forbidNonWhitelisted: true, // throw an error if undeclared properties are present
+        transform: true, // automatically transform payload into DTO class instances
 
-        exceptionFactory: (errors) => { // tuyến bố một factory để tạo ra lỗi tùy chỉnh khi validation thất bại
+        exceptionFactory: (errors) => { // factory for custom validation error responses
           // Format validation errors
           const formattedErrors = errors.map((error) => ({
-            field: error.property, // Tên của trường bị lỗi
-            messages: Object.values(error.constraints || {}), // Các thông báo lỗi liên quan đến trường đó
+            field: error.property, // the field that failed validation
+            messages: Object.values(error.constraints || {}), // all error messages for that field
           }));
-          throw new BadRequestException({ // Trả về một đối tượng lỗi có cấu trúc rõ ràng
-            statusCode: 400, // Mã lỗi HTTP
-            message: 'Validation failed', // Thông báo lỗi chung
+          throw new BadRequestException({ // return a structured error object
+            statusCode: 400,
+            message: 'Validation failed',
             errors: formattedErrors
           });
         },
@@ -378,7 +410,7 @@ Sample code for the "Login with Google" button in the frontend:
             localStorage.setItem('deviceId', deviceId);
         }
 
-        document.cookie = `deviceId=${deviceId}; path=/; max-age=31536000`; // Lưu trong 1 năm
+        document.cookie = `deviceId=${deviceId}; path=/; max-age=31536000`; // Store for 1 year
 
         window.location.href = "http://localhost:3000/api/v1/auth/google";
     };
@@ -554,7 +586,7 @@ The service handles email sending with Nodemailer:
           this.logger.log(`OTP email sent successfully: ${info.messageId}`);
       }
 
-      // Send test email (for verification)
+      // Send test email (for verifying SMTP setup)
       async sendTestEmail(toEmail: string): Promise<void> {
           const info = await this.transporter.sendMail({
               from: this.fromEmail,
@@ -692,7 +724,7 @@ In your `auth.service.ts`, inject and use the EmailService:
               registerDto.email,
               registerDto.userName,
               otp,
-              `Mã OTP sẽ hết hạn sau ${expireTime} phút`,
+              `OTP expires in ${expireTime} minutes`,
           );
 
           // Rest of your logic...
@@ -815,44 +847,47 @@ and setup tsconfig for testing in `tsconfig.json`:
 
 ## 11 Password Reset Flow — Forgot Password with OTP
 
-### Luồng hiện tại (Option A: JWT Reset Token — đã implement)
+### Current Implementation (JWT Reset Token in httpOnly Cookie)
 
-Sau khi xác thực OTP thành công, server trả về một JWT reset token ngắn hạn.
-Client dùng token đó ở bước riêng để đặt mật khẩu mới, giống như GitHub / Google.
+After OTP verification, the server signs a short-lived JWT reset token and stores it in an **httpOnly cookie** rather than returning it in the response body.
+The reset step only requires `newPassword` in the body — the token is read from the cookie automatically.
 
 ```
 POST /auth/change-password/send-otp
   Body: { email }
-  → Gửi OTP qua email. Trả về: { otpExpire }
+  → Sends OTP to email. Returns: { otpExpire }
 
 POST /auth/change-password/verify-otp
   Body: { email, otp }
-  → Xác thực OTP. Trả về: { resetToken, expiresIn }
-    resetToken là JWT ký bằng JWT_PASSWORD_RESET_SECRET, hết hạn sau PASSWORD_RESET_EXPIRE (mặc định 15m)
+  → Verifies OTP. Sets httpOnly cookie 'resetPassToken'. Returns: { expiresIn }
+    Cookie contains a JWT signed with JWT_PASSWORD_RESET_SECRET, expires after PASSWORD_RESET_EXPIRE (default 10m)
+    Browser automatically sends this cookie on the next /reset request
 
 POST /auth/change-password/reset
-  Body: { resetToken, newPassword }
-  → Xác thực JWT, đặt mật khẩu mới. Trả về: thông tin user
+  Cookie: [NAME_COOKIE_RESET_PASS_TOKEN] (httpOnly, sent automatically by browser)
+  Body: { newPassword }
+  → Reads JWT from cookie, verifies it, sets new password, invalidates all sessions, clears cookie
+  → Returns: user info (ISanitizedUser)
 ```
 
-**Env vars cần thêm:**
+**Required env vars:**
 ```env
 JWT_PASSWORD_RESET_SECRET="your_secret_here"
-PASSWORD_RESET_EXPIRE="15m"
+NAME_COOKIE_RESET_PASS_TOKEN="resetPassToken"
+PASSWORD_RESET_EXPIRE="10m"
 ```
 
-**Hạn chế của Option A:** JWT stateless → không thể thu hồi trước khi hết hạn.
-Nếu user request OTP nhiều lần, nhiều reset token cùng hợp lệ trong window 15 phút.
-Với auth starter / app thông thường, điều này chấp nhận được.
+**Notes:** Token stored in httpOnly cookie → not accessible by JS (XSS-safe).
+On successful password change, all active sessions are deleted (force logout from all devices) and the cookie is cleared immediately.
+JWT is stateless → cannot be revoked before expiry, but the short 10-minute window makes this acceptable.
 
 ---
 
-### Option B: Redis Reset Token (chưa implement — tham khảo để nâng cấp)
+### Option B: Redis Reset Token (not implemented — reference for future upgrade)
 
-Thay JWT bằng random token lưu trong Redis với TTL. Mỗi token chỉ dùng được 1 lần
-và bị xóa ngay sau khi đặt mật khẩu thành công. An toàn hơn cho production.
+Replace JWT with a random token stored in Redis with TTL. Each token is single-use and deleted immediately after a successful password change. More secure for production.
 
-**Bước 1: Thêm RedisModule vào AuthModule** (`auth.module.ts`)
+**Step 1: Add RedisModule to AuthModule** (`auth.module.ts`)
 
 ```typescript
 import { RedisModule } from '@/redis/redis.module';
@@ -860,58 +895,72 @@ import { RedisModule } from '@/redis/redis.module';
 @Module({
   imports: [
     ...,
-    RedisModule,  // thêm dòng này
+    RedisModule,
   ],
   ...
 })
 export class AuthModule {}
 ```
 
-**Bước 2: Inject RedisService vào PasswordService** (`password.service.ts`)
+**Step 2: Inject RedisService into PasswordService** (`password.service.ts`)
 
 ```typescript
 import { RedisService } from '@/redis/redis.service';
 import { randomBytes } from 'crypto';
 
 constructor(
-    // ... các dependency cũ
-    private readonly redisService: RedisService,  // thêm dòng này
+    // ... existing dependencies
+    private readonly redisService: RedisService,
 ) { ... }
 ```
 
-**Bước 3: Thay `verifyOtp` — tạo random token thay vì JWT**
+**Step 3: Replace `verifyOtp` — generate random token instead of JWT**
 
 ```typescript
 async verifyOtp(dto: ChangePasswordVerifyDto): Promise<IPasswordResetResult> {
     const { email, otp } = dto;
 
-    await this.otpService.verify(email, otp, 'OTP requested for password change');
+    const pending = await this.prismaService.pendingRegistration.findUnique({ where: { email } });
+    if (!pending) throw new ConflictException('No OTP request found for this email.');
+
+    await this.otpService.verify(
+        otp,
+        pending,
+        () => this.prismaService.pendingRegistration.delete({ where: { email } }).then(() => {}),
+        async () => {
+            const updated = await this.prismaService.pendingRegistration.update({
+                where: { email },
+                data: { attemptCount: { increment: 1 } },
+            });
+            return updated.attemptCount;
+        },
+    );
     await this.prismaService.pendingRegistration.deleteMany({ where: { email } });
 
-    // Tạo random token thay vì JWT
+    // Generate random token instead of JWT
     const resetToken = randomBytes(32).toString('hex'); // 64-char hex string
     const ttlSeconds = ms(this.resetTokenExpire as ms.StringValue) / 1000;
 
-    // Lưu vào Redis: key = "pwd_reset:<token>", value = email, TTL tự động xóa
+    // Store in Redis: key = "pwd_reset:<token>", value = email, auto-expires with TTL
     await this.redisService.set(`pwd_reset:${resetToken}`, email, ttlSeconds);
 
     return { resetToken, expiresIn: this.resetTokenExpire };
 }
 ```
 
-**Bước 4: Thay `resetPassword` — đọc email từ Redis thay vì decode JWT**
+**Step 4: Replace `resetPassword` — read email from Redis instead of decoding JWT**
 
 ```typescript
 async resetPassword(dto: ResetPasswordDto): Promise<ISanitizedUser> {
     const { resetToken, newPassword } = dto;
 
-    // Lấy email từ Redis bằng token
+    // Get email from Redis using the token
     const email = await this.redisService.get<string>(`pwd_reset:${resetToken}`);
     if (!email) {
         throw new ConflictException('Reset token is invalid or has expired. Please request a new OTP.');
     }
 
-    // Xóa token ngay — đảm bảo single-use
+    // Delete token immediately — ensures single-use
     await this.redisService.del(`pwd_reset:${resetToken}`);
 
     const newPasswordHash = await generatePasswordHash(newPassword, this.saltRounds);
@@ -932,32 +981,33 @@ async resetPassword(dto: ResetPasswordDto): Promise<ISanitizedUser> {
 }
 ```
 
-**Bước 5: Bỏ JwtService khỏi PasswordService** (không cần nữa nếu dùng Option B)
-- Xóa `private readonly jwtService: JwtService` khỏi constructor
-- Xóa `JWT_PASSWORD_RESET_SECRET` khỏi `.env` (chỉ giữ `PASSWORD_RESET_EXPIRE` cho TTL Redis)
+**Step 5: Remove JwtService from PasswordService** (no longer needed with Option B)
+- Remove `private readonly jwtService: JwtService` from the constructor
+- Remove `JWT_PASSWORD_RESET_SECRET` from `.env` (keep only `PASSWORD_RESET_EXPIRE` for Redis TTL)
 
-**So sánh Option A vs Option B:**
+**Current vs Option B:**
 
-| Tiêu chí | Option A (JWT — đang dùng) | Option B (Redis) |
+| Criterion | Current (JWT Cookie) | Option B (Redis) |
 |---|---|---|
-| Thu hồi token được | Không | Có |
-| Single-use | Không | Có |
-| Cần storage ngoài | Không | Redis (đã có sẵn) |
-| Stateless | Có | Không |
-| Phù hợp | Starter / prototype | Production / bảo mật cao |
+| Token revocable | No | Yes |
+| Single-use | No | Yes |
+| Token exposed in body | No (httpOnly cookie) | No (httpOnly cookie) |
+| External storage needed | No | Redis (already available) |
+| Stateless | Yes | No |
+| Best for | Starter / typical app | High-security production |
 
 ---
 
 ## 12 App Configuration: Global Prefix, URI Versioning, and CORS
 
-Tách cấu hình ra các file riêng trong `src/config/` để `main.ts` gọn hơn.
+Extract configuration into separate files under `src/config/` to keep `main.ts` clean.
 
-- **Install** `@nestjs/config` nếu chưa có:
+- **Install** `@nestjs/config` if not already present:
 ```bash
   pnpm add @nestjs/config
 ```
 
-- **Step 1: `src/config/app.config.ts`** — cấu hình global prefix và URI versioning
+- **Step 1: `src/config/app.config.ts`** — configure global prefix and URI versioning
 ```typescript
   import { VersioningType } from "@nestjs/common";
   import { ConfigService } from "@nestjs/config";
@@ -976,7 +1026,7 @@ Tách cấu hình ra các file riêng trong `src/config/` để `main.ts` gọn 
   };
 ```
 
-- **Step 2: `src/config/cors.config.ts`** — đọc danh sách origin từ env
+- **Step 2: `src/config/cors.config.ts`** — read allowed origins from env
 ```typescript
   import { ConfigService } from "@nestjs/config";
   import { NestExpressApplication } from "@nestjs/platform-express";
@@ -986,32 +1036,32 @@ Tách cấu hình ra các file riêng trong `src/config/` để `main.ts` gọn 
       app.enableCors({
           origin: configService.get<string>('LIST_ORIGIN_CORS')?.split(','),
           methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-          credentials: true, // Bắt buộc để cookie refresh token hoạt động với CORS
+          credentials: true, // required for cookie-based refresh tokens to work cross-origin
       });
   };
 ```
 
-- **Step 3: gọi trong `main.ts`**
+- **Step 3: call from `main.ts`**
 ```typescript
   const { globalPrefix, version } = setupAppConfig(app);
   setupCors(app);
-  // Route sẽ là: http://localhost:8080/api/v1/...
+  // Route will be: http://localhost:8080/api/v1/...
 ```
 
-- **Env vars cần thêm:**
+- **Required env vars:**
 ```env
-  GLOBAL_PREFIX="api"       # Tiền tố cho tất cả route
-  VERSION="1"               # Số phiên bản API (hiện tại là v1)
-  LIST_ORIGIN_CORS="http://localhost:3000,http://localhost:5173"  # Danh sách frontend origin
+  GLOBAL_PREFIX="api"       # prefix for all routes
+  VERSION="1"               # API version number (currently v1)
+  LIST_ORIGIN_CORS="http://localhost:3000,http://localhost:5173"  # comma-separated list of allowed frontend origins
 ```
 
 ---
 
 ## 13 Global Exception Filter + Custom AppException
 
-Tạo một lớp exception tùy chỉnh và một global filter để tất cả lỗi trong app trả về cùng một cấu trúc JSON.
+Create a custom exception class and a global filter so all errors return a consistent JSON structure.
 
-- **Step 1: `src/common/exceptions/app.exception.ts`** — các lớp exception tùy chỉnh
+- **Step 1: `src/common/exceptions/app.exception.ts`** — custom exception classes
 ```typescript
   export class AppException extends Error {
     constructor(
@@ -1063,13 +1113,13 @@ Tạo một lớp exception tùy chỉnh và một global filter để tất c�
   }
 ```
 
-- **Step 2: `src/common/filters/all-exceptions.filter.ts`** — bắt mọi exception và format response
+- **Step 2: `src/common/filters/all-exceptions.filter.ts`** — catch all exceptions and format the response
 ```typescript
   import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
   import { Request, Response } from 'express';
   import { AppException } from '@/common/exceptions/app.exception';
 
-  @Catch() // Bắt tất cả loại exception
+  @Catch() // catch all exception types
   export class AllExceptionsFilter implements ExceptionFilter {
     private readonly logger = new Logger(AllExceptionsFilter.name);
 
@@ -1092,7 +1142,7 @@ Tạo một lớp exception tùy chỉnh và một global filter để tất c�
         statusCode = exception.getStatus();
         const res = exception.getResponse() as any;
         message = Array.isArray(res.message) ? res.message.join(', ') : res.message || message;
-        if (res.errors) details = res.errors; // Giữ lại lỗi validation từ ValidationPipe
+        if (res.errors) details = res.errors; // preserve validation errors from ValidationPipe
         code = 'HTTP_EXCEPTION';
       } else if (exception instanceof Error) {
         message = exception.message;
@@ -1110,7 +1160,7 @@ Tạo một lớp exception tùy chỉnh và một global filter để tất c�
   }
 ```
 
-- **Step 3: đăng ký global trong `app.module.ts`**
+- **Step 3: register globally in `app.module.ts`**
 ```typescript
   import { APP_FILTER } from '@nestjs/core';
   import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
@@ -1121,15 +1171,15 @@ Tạo một lớp exception tùy chỉnh và một global filter để tất c�
 ```
 
 **Key Points:**
-- Dùng `AppException` thay vì `throw new Error()` để đảm bảo response luôn đúng cấu trúc
-- `@Catch()` không có tham số → bắt tất cả, kể cả lỗi không phải HttpException
-- `details` chỉ xuất hiện trong response nếu có (spread có điều kiện)
+- Use `AppException` instead of `throw new Error()` to ensure responses always have the correct structure
+- `@Catch()` with no arguments → catches everything, including non-HttpException errors
+- `details` only appears in the response when present (conditional spread)
 
 ---
 
-## 14 Global Transform Interceptor — Chuẩn Hóa Response
+## 14 Global Transform Interceptor — Standardize API Response
 
-Tất cả response thành công trả về cùng một cấu trúc JSON gồm `statusCode`, `message`, `data`, `timestamp`, `path`.
+All successful responses return a unified JSON structure with `statusCode`, `message`, `data`, `timestamp`, and `path`.
 
 - **`src/common/interceptors/transform.interceptor.ts`**
 ```typescript
@@ -1154,11 +1204,11 @@ Tất cả response thành công trả về cùng một cấu trúc JSON gồm `
 
       return next.handle().pipe(
         map((data) => {
-          // Nếu controller đã trả về đúng cấu trúc thì giữ nguyên, chỉ bổ sung timestamp và path
+          // if controller already returned the correct structure, just add timestamp and path
           if (data && typeof data === 'object' && 'statusCode' in data && 'message' in data) {
             return { ...data, code: data.code || 'SUCCESS', timestamp: new Date().toISOString(), path: request.url };
           }
-          // Nếu controller trả về raw data thì bọc vào cấu trúc chuẩn
+          // if controller returned raw data, wrap it in the standard structure
           return { statusCode: HttpStatus.OK, message: 'Request successful', code: 'SUCCESS', data, timestamp: new Date().toISOString(), path: request.url };
         }),
       );
@@ -1166,7 +1216,7 @@ Tất cả response thành công trả về cùng một cấu trúc JSON gồm `
   }
 ```
 
-- **Đăng ký global trong `app.module.ts`**
+- **Register globally in `app.module.ts`**
 ```typescript
   import { APP_INTERCEPTOR } from '@nestjs/core';
   import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
@@ -1180,7 +1230,7 @@ Tất cả response thành công trả về cùng một cấu trúc JSON gồm `
 
 ## 15 Global HTTP Logging Interceptor
 
-Log mỗi request vào và response ra với method, URL, status code và thời gian xử lý.
+Logs every incoming request and outgoing response with method, URL, status code, and processing time.
 
 - **`src/common/interceptors/logging.interceptor.ts`**
 ```typescript
@@ -1211,7 +1261,7 @@ Log mỗi request vào và response ra với method, URL, status code và thời
   }
 ```
 
-- **Đăng ký global trong `app.module.ts`** (đặt trước TransformInterceptor để log đúng thứ tự)
+- **Register globally in `app.module.ts`** (place before TransformInterceptor to log in the correct order)
 ```typescript
   import { APP_INTERCEPTOR } from '@nestjs/core';
   import { ClassSerializerInterceptor } from '@nestjs/common';
@@ -1219,7 +1269,7 @@ Log mỗi request vào và response ra với method, URL, status code và thời
 
   providers: [
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
-    { provide: APP_INTERCEPTOR, useClass: ClassSerializerInterceptor }, // loại bỏ field @Exclude()
+    { provide: APP_INTERCEPTOR, useClass: ClassSerializerInterceptor }, // strip @Exclude() fields
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
   ]
 ```
@@ -1228,42 +1278,42 @@ Log mỗi request vào và response ra với method, URL, status code và thời
 
 ## 16 Custom Route Decorators
 
-Tạo các decorator dùng lại nhiều lần để đánh dấu route public, admin-only và lấy thông tin user/deviceId từ request.
+Create reusable decorators to mark routes as public, admin-only, and to extract user/deviceId from the request.
 
-- **`src/common/decorators/metadata.ts`** — decorator dùng với JWT Guard
+- **`src/common/decorators/metadata.ts`** — decorators used with JWT Guard
 ```typescript
   import { SetMetadata } from '@nestjs/common';
 
   export const IS_PUBLIC_KEY = 'isPublic';
   export const IS_ADMIN_ONLY_KEY = 'isAdminOnly';
 
-  // @Public() — bỏ qua JWT authentication, dùng trên route không cần đăng nhập
+  // @Public() — skip JWT authentication, use on routes that don't require login
   export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
-  // @AdminOnly() — đặt trên class controller, chỉ admin mới được vào
+  // @AdminOnly() — place on controller class, only admins can access
   export const AdminOnly = () => SetMetadata(IS_ADMIN_ONLY_KEY, true);
 
-  // @SkipAdminOnly() — đặt trên method cụ thể để bỏ qua @AdminOnly() của class
-  // Dùng getAllAndOverride nên false ở method sẽ override true ở class
+  // @SkipAdminOnly() — place on a specific method to override @AdminOnly() on the class
+  // getAllAndOverride means false at method level overrides true at class level
   export const SkipAdminOnly = () => SetMetadata(IS_ADMIN_ONLY_KEY, false);
 ```
 
-- **`src/common/decorators/user.decorator.ts`** — lấy user/deviceId từ request
+- **`src/common/decorators/user.decorator.ts`** — extract user/deviceId from request
 ```typescript
   import { createParamDecorator, ExecutionContext, BadRequestException } from '@nestjs/common';
   import { Request } from 'express';
 
-  // @User() — lấy user đã xác thực từ request (được gắn vào bởi JwtStrategy)
+  // @User() — extract the authenticated user from request (attached by JwtStrategy)
   export const User = createParamDecorator((data: unknown, ctx: ExecutionContext) => {
     return ctx.switchToHttp().getRequest().user;
   });
 
-  // @UserGoogle() — lấy thông tin Google user trong callback Google OAuth2
+  // @UserGoogle() — extract Google user info in the Google OAuth2 callback
   export const UserGoogle = createParamDecorator((data: unknown, ctx: ExecutionContext) => {
     return ctx.switchToHttp().getRequest().user;
   });
 
-  // @DeviceId() — đọc deviceId từ cookie, bắt buộc phải có cho login và refresh
+  // @DeviceId() — read deviceId from cookie, required for login and refresh endpoints
   export const DeviceId = createParamDecorator((data: unknown, ctx: ExecutionContext): string => {
     const deviceIdEnv = process.env.NAME_DEVICEID_CLIENT!;
     const request = ctx.switchToHttp().getRequest<Request>();
@@ -1273,14 +1323,14 @@ Tạo các decorator dùng lại nhiều lần để đánh dấu route public, 
   });
 ```
 
-- **Env var cần thêm:**
+- **Required env var:**
 ```env
-  NAME_DEVICEID_CLIENT="deviceId"   # Tên cookie chứa deviceId từ frontend
+  NAME_DEVICEID_CLIENT="deviceId"   # name of the cookie that carries deviceId from the frontend
 ```
 
-- **Cách frontend gửi deviceId lên (cookie):**
+- **How the frontend sends deviceId (via cookie):**
 ```javascript
-  // Tạo và lưu deviceId vào localStorage + cookie trước khi gọi login
+  // Create and store deviceId in localStorage + cookie before calling login
   let deviceId = localStorage.getItem('deviceId');
   if (!deviceId) {
     deviceId = crypto.randomUUID();
@@ -1291,9 +1341,9 @@ Tạo các decorator dùng lại nhiều lần để đánh dấu route public, 
 
 ---
 
-## 17 JwtAuthGuard — Global Guard với Admin Role Check
+## 17 JwtAuthGuard — Global Guard with Admin Role Check
 
-Guard được đăng ký global trong `AppModule`. Tất cả route đều yêu cầu JWT trừ khi có `@Public()`. Route có `@AdminOnly()` chỉ cho phép user có role admin.
+Guard registered globally in `AppModule`. All routes require JWT unless decorated with `@Public()`. Routes with `@AdminOnly()` only allow users with the admin role.
 
 - **`src/lib/passport/jwt-auth.guard.ts`**
 ```typescript
@@ -1311,7 +1361,7 @@ Guard được đăng ký global trong `AppModule`. Tất cả route đều yêu
     ) { super(); }
 
     canActivate(context: ExecutionContext) {
-      // Nếu route có @Public() thì cho qua không cần JWT
+      // if route has @Public(), skip JWT check
       const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
         context.getHandler(), context.getClass(),
       ]);
@@ -1323,7 +1373,7 @@ Guard được đăng ký global trong `AppModule`. Tất cả route đều yêu
       if (err || !user) throw err || new UnauthorizedException('Invalid or expired token');
       if (info) throw new UnauthorizedException(info.message);
 
-      // Kiểm tra @AdminOnly() — nếu có thì chỉ admin mới qua
+      // check @AdminOnly() — if set, only admins are allowed
       const isAdminOnly = this.reflector.getAllAndOverride<boolean>(IS_ADMIN_ONLY_KEY, [
         context.getHandler(), context.getClass(),
       ]);
@@ -1338,7 +1388,7 @@ Guard được đăng ký global trong `AppModule`. Tất cả route đều yêu
   }
 ```
 
-- **Đăng ký global trong `app.module.ts`**
+- **Register globally in `app.module.ts`**
 ```typescript
   import { APP_GUARD } from '@nestjs/core';
   import { JwtAuthGuard } from '@/lib/passport/jwt-auth.guard';
@@ -1348,26 +1398,26 @@ Guard được đăng ký global trong `AppModule`. Tất cả route đều yêu
   ]
 ```
 
-- **Cách dùng trong controller:**
+- **Usage in controller:**
 ```typescript
-  @Public()                  // → Không cần JWT (đăng ký, đăng nhập...)
-  @AdminOnly()               // → Cả class chỉ cho admin (users controller)
-  @SkipAdminOnly()           // → Method cụ thể bỏ qua @AdminOnly() của class
+  @Public()                  // → no JWT required (register, login...)
+  @AdminOnly()               // → entire class is admin-only
+  @SkipAdminOnly()           // → specific method bypasses @AdminOnly() on the class
 ```
 
 **Key Points:**
-- `getAllAndOverride` ưu tiên handler (method) trước class → `@SkipAdminOnly()` trên method sẽ override `@AdminOnly()` trên class
-- Guard chạy trước interceptor và pipe, nên lỗi từ guard không đi qua TransformInterceptor mà đi qua ExceptionFilter
+- `getAllAndOverride` prioritizes handler (method) over class → `@SkipAdminOnly()` on a method overrides `@AdminOnly()` on the class
+- Guard runs before interceptors and pipes, so guard errors bypass TransformInterceptor and go directly to ExceptionFilter
 
 ---
 
 ## 18 JWT Token System — Access Token + Refresh Token + Session
 
-- **Access token** lưu trong memory frontend (Authorization header), hết hạn ngắn (60 phút)
-- **Refresh token** lưu trong `httpOnly` cookie để tránh XSS, hết hạn dài (1 ngày)
-- **Session** lưu trong DB theo cặp `(userId, deviceId)` — giới hạn số thiết bị đăng nhập
+- **Access token** stored in frontend memory (Authorization header), short-lived (60 minutes)
+- **Refresh token** stored in `httpOnly` cookie to prevent XSS, long-lived (1 day)
+- **Session** stored in the DB by `(userId, deviceId)` pair — limits concurrent device logins
 
-- **`src/auth/passport/jwt.strategy.ts`** — giải mã access token từ header
+- **`src/auth/passport/jwt.strategy.ts`** — decode access token from header
 ```typescript
   import { Injectable } from '@nestjs/common';
   import { PassportStrategy } from '@nestjs/passport';
@@ -1385,57 +1435,57 @@ Guard được đăng ký global trong `AppModule`. Tất cả route đều yêu
     }
 
     async validate(payload: any) {
-      return payload; // payload được gắn vào request.user bởi Passport
+      return payload; // payload is attached to request.user by Passport
     }
   }
 ```
 
-- **`src/auth/services/token.service.ts`** — tạo token và quản lý session
+- **`src/auth/services/token.service.ts`** — create tokens and manage sessions
 ```typescript
   async login(user: ISanitizedUser, res: Response, deviceId: string) {
-    // 1. Tạo refresh token (ký với secret riêng, thời hạn dài hơn)
+    // 1. Create refresh token (signed with separate secret, longer expiry)
     const refreshToken = this.jwtService.sign(
       { userId: user.id, _sub: { roleName: user.roleName, email: user.email }, deviceId },
       { secret: this.refreshTokenSecret, expiresIn: expiresInSeconds }
     );
 
-    // 2. Lưu session vào DB (upsert — nếu thiết bị đã có thì cập nhật)
+    // 2. Save session to DB (upsert — update if device already has a session)
     await this.sessionService.upsertSession({ userId: user.id, refreshToken, deviceId });
 
-    // 3. Gắn refresh token vào httpOnly cookie
+    // 3. Attach refresh token to httpOnly cookie
     res.cookie(this.refreshTokenName, refreshToken, {
-      httpOnly: true,  // Không cho JS đọc → chống XSS
-      secure: true,    // Chỉ gửi qua HTTPS
+      httpOnly: true,  // not accessible by JS → XSS-safe
+      secure: true,    // only sent over HTTPS
       sameSite: 'lax',
       maxAge: ms(this.expiresInRefresh),
     });
 
-    // 4. Tạo access token (ký với JwtModule default secret, thời hạn ngắn)
+    // 4. Create access token (signed with JwtModule default secret, short expiry)
     return { accessToken: this.jwtService.sign(sanitizeUser(user)), user: sanitizeUser(user) };
   }
 ```
 
-- **Env vars cần thêm:**
+- **Required env vars:**
 ```env
   JWT_ACCESS_TOKEN_SECRET="your_access_secret"
   JWT_ACCESS_EXPIRE="60m"
   JWT_REFRESH_TOKEN_SECRET="your_refresh_secret"
   JWT_REFRESH_EXPIRE="1d"
-  NAME_COOKIE_REFRESH_TOKEN_BROWSER="refreshToken"   # Tên cookie lưu refresh token
-  NUMBER_OF_DEVICES=2                                # Số thiết bị tối đa đăng nhập cùng lúc
+  NAME_COOKIE_REFRESH_TOKEN_BROWSER="refreshToken"   # cookie name for the refresh token
+  NUMBER_OF_DEVICES=2                                # max concurrent devices per user
 ```
 
 ---
 
-## 19 Session Management — Giới Hạn Số Thiết Bị
+## 19 Session Management — Device Limit
 
-Session lưu trong DB theo `(userId, deviceId)`. Khi đăng nhập thiết bị mới vượt giới hạn, session cũ nhất sẽ bị xóa tự động.
+Sessions are stored in the DB by `(userId, deviceId)`. When a new device login exceeds the limit, the oldest session is automatically deleted.
 
-- **`src/session/session.service.ts`** — logic upsert với device limit
+- **`src/session/session.service.ts`** — upsert logic with device limit
 ```typescript
   async upsertSession(dto: { userId: string; deviceId: string; refreshToken: string }) {
     return this.prismaService.$transaction(async (tx) => {
-      // Nếu thiết bị đã có session → cập nhật token
+      // device already has a session → update token
       const existing = await tx.session.findUnique({
         where: { userId_deviceId: { userId: dto.userId, deviceId: dto.deviceId } },
       });
@@ -1443,10 +1493,10 @@ Session lưu trong DB theo `(userId, deviceId)`. Khi đăng nhập thiết bị 
         return tx.session.update({ where: { userId_deviceId: { userId: dto.userId, deviceId: dto.deviceId } }, data: { refreshToken: dto.refreshToken, expiresAt } });
       }
 
-      // Thiết bị mới → kiểm tra giới hạn
+      // new device → check device limit
       const sessions = await tx.session.findMany({ where: { userId: dto.userId, expiresAt: { gt: new Date() } }, orderBy: { expiresAt: 'asc' } });
       if (sessions.length >= limit) {
-        await tx.session.delete({ where: { id: sessions[0].id } }); // Xóa session cũ nhất
+        await tx.session.delete({ where: { id: sessions[0].id } }); // delete oldest session
       }
 
       return tx.session.create({ data: { userId: dto.userId, deviceId: dto.deviceId, refreshToken: dto.refreshToken, expiresAt } });
@@ -1454,7 +1504,7 @@ Session lưu trong DB theo `(userId, deviceId)`. Khi đăng nhập thiết bị 
   }
 ```
 
-- **Cần tạo Prisma model `Session`** với unique constraint `(userId, deviceId)`:
+- **Create Prisma model `Session`** with a unique constraint on `(userId, deviceId)`:
 ```prisma
   model Session {
     id           String   @id @default(cuid())
@@ -1466,15 +1516,15 @@ Session lưu trong DB theo `(userId, deviceId)`. Khi đăng nhập thiết bị 
     updatedAt    DateTime @updatedAt
     user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-    @@unique([userId, deviceId])   // Mỗi cặp (user, thiết bị) chỉ có 1 session
+    @@unique([userId, deviceId])   // each (user, device) pair has exactly one session
   }
 ```
 
 ---
 
-## 20 Cron Jobs — Scheduled Tasks với @nestjs/schedule
+## 20 Cron Jobs — Scheduled Tasks with @nestjs/schedule
 
-Tự động dọn dẹp session hết hạn và pending registration cũ mỗi phút.
+Automatically clean up expired sessions and stale pending registrations every minute.
 
 - **Install:**
 ```bash
@@ -1482,23 +1532,23 @@ Tự động dọn dẹp session hết hạn và pending registration cũ mỗi 
   pnpm add -D @types/cron
 ```
 
-- **Đăng ký trong `app.module.ts`:**
+- **Register in `app.module.ts`:**
 ```typescript
   import { ScheduleModule } from '@nestjs/schedule';
 
   imports: [
-    ScheduleModule.forRoot(), // Bật scheduler toàn app
+    ScheduleModule.forRoot(), // enable scheduler app-wide
     ...
   ]
 ```
 
-- **Tạo module và service:**
+- **Create module and service:**
 ```bash
   nest g module jobs
   nest g service jobs
 ```
 
-- **`src/jobs/jobs.service.ts`** — định nghĩa các cron job
+- **`src/jobs/jobs.service.ts`** — define cron jobs
 ```typescript
   import { Injectable, Logger } from '@nestjs/common';
   import { Cron, CronExpression } from '@nestjs/schedule';
@@ -1510,14 +1560,14 @@ Tự động dọn dẹp session hết hạn và pending registration cũ mỗi 
 
     constructor(private readonly prisma: PrismaService) {}
 
-    // Chạy mỗi phút — xóa session đã hết hạn
+    // runs every minute — deletes expired sessions
     @Cron(CronExpression.EVERY_MINUTE, { name: 'handleExpiredSessions', timeZone: 'Asia/Ho_Chi_Minh', waitForCompletion: true })
     async handleExpiredSessions() {
       const result = await this.prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
       if (result.count > 0) this.logger.log(`✅ Deleted ${result.count} expired sessions`);
     }
 
-    // Chạy mỗi phút — xóa pending registration hết hạn OTP
+    // runs every minute — deletes pending registrations with expired OTPs
     @Cron(CronExpression.EVERY_MINUTE, { name: 'cleanupExpiredPendingRegistrations', timeZone: 'Asia/Ho_Chi_Minh', waitForCompletion: true })
     async cleanupExpiredPendingRegistrations() {
       const result = await this.prisma.pendingRegistration.deleteMany({ where: { otpExpiresAt: { lt: new Date() } } });
@@ -1536,17 +1586,17 @@ Tự động dọn dẹp session hết hạn và pending registration cũ mỗi 
 ```
 
 **Key Points:**
-- `waitForCompletion: true` — đảm bảo lần chạy trước kết thúc trước khi lần tiếp theo bắt đầu
-- `CronExpression.EVERY_MINUTE` — chạy đầu mỗi phút (cron: `0 * * * * *`)
-- Timezone `Asia/Ho_Chi_Minh` — đảm bảo cron theo giờ Việt Nam
+- `waitForCompletion: true` — ensures the previous run completes before the next one starts
+- `CronExpression.EVERY_MINUTE` — fires at the start of every minute (cron: `0 * * * * *`)
+- Timezone `Asia/Ho_Chi_Minh` — ensures cron runs on Vietnam time
 
 ---
 
-## 21 Database Seeding — Khởi Tạo Dữ Liệu Mẫu Khi Khởi Động
+## 21 Database Seeding — Seed Initial Data on Startup
 
-`SeedDbService` implements `OnModuleInit` để tự động seed khi app khởi động, controlled bởi env vars.
+`SeedDbService` implements `OnModuleInit` to automatically seed the database on startup, controlled by env vars.
 
-- **`src/seed-db/seed/sample.ts`** — dữ liệu mẫu
+- **`src/seed-db/seed/sample.ts`** — sample data
 ```typescript
   export const roles = [
     { roleName: 'ADMIN' },
@@ -1559,59 +1609,59 @@ Tự động dọn dẹp session hết hạn và pending registration cũ mỗi 
   ];
 ```
 
-- **`src/seed-db/seed-db.service.ts`** — logic seed và clear
+- **`src/seed-db/seed-db.service.ts`** — seed and clear logic
 ```typescript
   @Injectable()
   export class SeedDbService implements OnModuleInit {
     async onModuleInit() {
       const shouldSeed  = this.configService.get<string>('SEED_DB')  === 'true';
-      const shouldClear = this.configService.get<string>('CLEAR_DB') !== 'false'; // Mặc định true
+      const shouldClear = this.configService.get<string>('CLEAR_DB') !== 'false'; // defaults to true
 
       if (shouldSeed) {
-        if (shouldClear) await this.clear(); // Xóa toàn bộ DB trước khi seed
-        await this.seed();                   // Seed roles → users theo đúng thứ tự dependency
+        if (shouldClear) await this.clear(); // clear entire DB before seeding
+        await this.seed();                   // seed roles then users in correct dependency order
       }
     }
   }
 ```
 
-- **Env vars kiểm soát seeding:**
+- **Env vars to control seeding:**
 ```env
-  SEED_DB=true     # true → chạy seed khi app khởi động
-  CLEAR_DB=false   # false → chỉ seed, không xóa data cũ trước
-                   # true  → xóa toàn bộ DB + Supabase Storage trước khi seed (NGUY HIỂM khi production!)
-  DEFAULT_PASSWORD="123456"  # Mật khẩu mặc định cho tài khoản seed
+  SEED_DB=true     # true → run seeding on startup
+  CLEAR_DB=false   # false → seed without clearing existing data
+                   # true  → clear entire DB + Supabase Storage before seeding (DANGEROUS in production!)
+  DEFAULT_PASSWORD="123456"  # default password for seeded accounts
 ```
 
 **Key Points:**
-- `CLEAR_DB=false` ở production để không vô tình xóa data thật
-- Seed theo thứ tự: roles trước, users sau (vì users cần roleId)
-- `skipDuplicates: true` trong `createMany` — không throw lỗi nếu data đã tồn tại
+- `CLEAR_DB=false` in production to avoid accidentally wiping real data
+- Seed in order: roles first, users second (users require a roleId)
+- `skipDuplicates: true` in `createMany` — no error if data already exists
 
 ---
 
-## 22 OTP Registration Flow — Đăng Ký Với Xác Thực Email
+## 22 OTP Registration Flow — Email-Verified Registration
 
-Luồng đăng ký 2 bước: gửi OTP để xác minh email trước khi tạo tài khoản.
+Two-step registration flow: send OTP to verify email before creating the account.
 
 ```
 POST /auth/register
   Body: { userName, email, password }
-  → Lưu vào bảng pendingRegistration (chưa tạo user), gửi OTP qua email
-  → Trả về: { otpExpire }
+  → Saves to pendingRegistration table (no user created yet), sends OTP via email
+  → Returns: { otpExpire }
 
 POST /auth/verify-register-otp
   Body: { email, otp }
-  → Xác thực OTP, tạo user trong bảng user, xóa pendingRegistration
-  → Trả về: thông tin user mới (ISanitizedUser)
+  → Verifies OTP, creates user in the user table, removes pendingRegistration
+  → Returns: newly created user info (ISanitizedUser)
 
 POST /auth/resend-register-otp
   Body: { email }
-  → Tạo OTP mới và gửi lại (chỉ khi hết cooldown)
-  → Trả về: { otpExpire }
+  → Generates a new OTP and resends (only after cooldown expires)
+  → Returns: { otpExpire }
 ```
 
-- **Prisma model `PendingRegistration`** cần có:
+- **Required Prisma model `PendingRegistration`**:
 ```prisma
   model PendingRegistration {
     id            String    @id @default(cuid())
@@ -1627,50 +1677,51 @@ POST /auth/resend-register-otp
   }
 ```
 
-- **OtpService** (pure — không truy cập DB) dùng chung cho tất cả OTP flows:
+- **OtpService** (pure — no DB access) shared across all OTP flows:
 ```typescript
-  // Tạo OTP mới
+  // Generate new OTP
   async generate(): Promise<{ otp, otpHash, otpExpiresAt, resendAfter }>
 
-  // Kiểm tra format OTP (độ dài)
+  // Validate OTP format (length check)
   assertFormat(otp: string): void
 
-  // Kiểm tra cooldown từ Date — throw nếu còn trong thời gian chờ
+  // Check cooldown from Date — throws if still within the cooldown window
   assertNoCooldown(resendAfter: Date | null | undefined): void
 
-  // Xác thực OTP — caller truyền callback để xử lý DB (delete khi expired/locked, increment khi sai)
+  // Verify OTP — caller provides callbacks to handle DB operations
+  // (delete on expired/locked, increment attempt count on wrong input)
   async verify(otp, record, onCleanup: () => Promise<void>, onIncrementAttempt: () => Promise<number>): Promise<void>
 ```
 
-- **Env vars liên quan:**
+- **Required env vars:**
 ```env
-  OTP_EXPIRE=5m             # Thời gian OTP còn hiệu lực
-  OTP_LENGTH=6              # Độ dài OTP (số chữ số)
-  OTP_MAX_ATTEMPTS=5        # Số lần nhập sai tối đa trước khi khóa
-  OTP_RESEND_COOLDOWN=60s   # Thời gian chờ giữa 2 lần gửi OTP
+  OTP_EXPIRE=5m             # OTP validity window
+  OTP_LENGTH=6              # OTP digit length
+  OTP_MAX_ATTEMPTS=5        # max wrong attempts before locking
+  OTP_RESEND_COOLDOWN=60s   # cooldown between OTP resend requests
 ```
 
 ---
 
-## 23 OTP Profile Update — Đổi Email/Username Với Xác Thực OTP
+## 23 OTP Profile Update — Change Email or Username with OTP
 
-User có thể đổi email, username hoặc description với bảo vệ OTP. Chỉ description thay đổi thì cập nhật ngay, không cần OTP.
+Users can change their email, username, or description with OTP protection. Changing only the description updates immediately without OTP.
 
 ```
-POST /users/update-profile/request-otp       (cần JWT)
+POST /users/update-profile/request-otp       (requires JWT)
   Body: { email?, userName?, description? }
-  → Nếu chỉ description thay đổi: cập nhật ngay, trả về { skipOtp: true, data: userEntity }
-  → Nếu email/username thay đổi:
-      - Gửi OTP đến EMAIL MỚI nếu email thay đổi
-      - Gửi OTP đến EMAIL CŨ nếu chỉ username thay đổi
-      - Trả về: { skipOtp: false, data: { targetEmail (masked), changes } }
+  → If only description changes: updates immediately, returns { skipOtp: true, data: userEntity }
+  → If email/username changes:
+      - Sends OTP to the NEW EMAIL if email is changing
+      - Sends OTP to the CURRENT EMAIL if only username is changing
+      - Returns: { skipOtp: false, data: { targetEmail (masked), changes } }
 
-POST /users/update-profile/verify-otp        (cần JWT)
+POST /users/update-profile/verify-otp        (requires JWT)
   Body: { otp }
-  → Xác thực OTP, áp dụng thay đổi, trả về userEntity mới
+  → Verifies OTP, applies changes, returns updated userEntity
 ```
 
-- **Prisma model `PendingUserUpdate`** cần có:
+- **Required Prisma model `PendingUserUpdate`**:
 ```prisma
   model PendingUserUpdate {
     id            String    @id @default(cuid())
@@ -1688,21 +1739,21 @@ POST /users/update-profile/verify-otp        (cần JWT)
   }
 ```
 
-- **Google account bị giới hạn:** không được đổi email và username (chỉ description)
-- **`@SkipAdminOnly()`** trên endpoint — vì `UsersController` có `@AdminOnly()` ở class level nhưng update profile cho phép user thường dùng
+- **Google accounts are restricted:** cannot change email or username (description only)
+- **`@SkipAdminOnly()`** on these endpoints — because `UsersController` has `@AdminOnly()` at class level but profile update must be accessible to regular users
 
 **Key Points:**
-- OTP gửi đến EMAIL MỚI (không phải email cũ) khi đổi email → xác minh người dùng thực sự sở hữu email mới
-- Masked email trong response (ví dụ: `li***@gmail.com`) để không lộ email mới khi chưa xác thực
-- Dùng transaction khi apply update để đảm bảo atomicity: update user + delete pending cùng lúc
+- OTP is sent to the NEW EMAIL (not the old one) when changing email → verifies the user actually owns the new address
+- Email is masked in the response (e.g. `li***@gmail.com`) to avoid exposing the new email before it is verified
+- Uses a transaction when applying the update for atomicity: update user + delete pending in one operation
 
 ---
 
-## 24 Path Alias @/ — Cấu Hình Đường Dẫn Tuyệt Đối
+## 24 Path Alias — Absolute Import Configuration
 
-Thay vì import kiểu `../../common/exceptions`, dùng `@/common/exceptions` cho gọn hơn.
+Instead of `../../common/exceptions`, use `@/common/exceptions` for cleaner imports.
 
-- **Cấu hình trong `tsconfig.json`:**
+- **Configure in `tsconfig.json`:**
 ```json
   {
     "compilerOptions": {
@@ -1714,7 +1765,7 @@ Thay vì import kiểu `../../common/exceptions`, dùng `@/common/exceptions` ch
   }
 ```
 
-- **Nếu dùng với NestJS CLI build (webpack), cũng cần cấu hình trong `nest-cli.json`:**
+- **If using NestJS CLI build (webpack), also configure in `nest-cli.json`:**
 ```json
   {
     "compilerOptions": {
@@ -1726,15 +1777,284 @@ Thay vì import kiểu `../../common/exceptions`, dùng `@/common/exceptions` ch
   }
 ```
 
-- **Nếu build ra JS và chạy trực tiếp** (không qua ts-node), cần install thêm `tsconfig-paths`:
+- **If building to JS and running directly** (not via ts-node), install `tsconfig-paths`:
 ```bash
   pnpm add tsconfig-paths
 ```
-và thêm vào `package.json` scripts:
+and add to `package.json` scripts:
 ```json
   "start:prod": "node -r tsconfig-paths/register dist/main"
 ```
 
 **Key Points:**
-- `@/` map sang `src/` — tất cả import tuyệt đối bắt đầu từ thư mục `src`
-- Giúp tránh import kiểu `../../../` khó đọc khi file nằm sâu trong thư mục
+- `@/` maps to `src/` — all absolute imports start from the `src` directory
+- Avoids hard-to-read `../../../` imports when files are nested deep in the directory tree
+
+---
+
+## 25 TypeScript Interfaces — Complete Reference
+
+All interfaces are centralized in `*/interfaces/*.ts` files and always imported with `import type` to prevent circular dependencies and support tree-shaking. Below is the complete list organized by file.
+
+---
+
+### `src/auth/interfaces/auth.types.ts`
+
+**Passport / JWT payloads:**
+```typescript
+// access token payload — attached to request.user by JwtStrategy
+export interface IJwtPayload {
+  id: string;
+  email: string;
+  userName: string;
+  roleName: string;
+  accountType: string;
+  avatarUrl?: string | null;
+}
+
+// refresh token payload stored in httpOnly cookie
+export interface IRefreshTokenPayload {
+  userId: string;
+  _sub: { roleName: string; email: string };
+  deviceId: string;
+  iat?: number;
+  exp?: number;
+}
+
+// return type of LocalStrategy.validate() — only fields needed for login
+export interface ILocalValidateResult {
+  id: string;
+  email: string;
+  userName: string;
+  password?: string | null;
+  accountType: string;
+  roleName: string;
+}
+```
+
+**User representation:**
+```typescript
+// user data safe to return to the client (no password, no hash)
+export interface ISanitizedUser {
+  id: string;
+  email: string;
+  userName: string;
+  accountType: string;
+  roleName: string;
+  avatarUrl?: string | null;
+  backgroundUrl?: string | null;
+  description?: string | null;
+  googleId?: string | null;
+  roleId: string;
+}
+```
+
+**Result types:**
+```typescript
+export interface ILoginResult {
+  accessToken: string;
+  user: ISanitizedUser;
+}
+
+export interface IRegisterResult {
+  otpExpire: string;
+}
+
+export interface IOtpGenerationResult {
+  otp: string;
+  otpHash: string;
+  otpExpiresAt: Date;
+  resendAfter: Date;
+}
+
+export interface IUserUpdateOtpRequestResult {
+  skipOtp: boolean;
+  message: string;
+  data: IUserEntity | { targetEmail: string; changes: string[] };
+}
+
+// returned after OTP verification for password reset
+// reset token is stored in httpOnly cookie, not exposed in response body
+export interface IPasswordResetResult {
+  expiresIn: string;
+}
+```
+
+**DTO interfaces:**
+```typescript
+export interface IRegisterDto {
+  userName: string;
+  email: string;
+  password: string;
+}
+
+export interface IVerifyRegisterOtpDto {
+  email: string;
+  otp: string;
+}
+
+export interface IResendRegisterOtpDto {
+  email: string;
+}
+
+export interface ILoginDto {
+  userNameOrEmail: string;
+  password: string;
+}
+
+export interface IVerifyEmailDto {
+  email: string;
+}
+
+export interface IChangePasswordVerifyDto {
+  email: string;
+  otp: string;
+}
+
+// token is read from httpOnly cookie → body only needs newPassword
+export interface IResetPasswordDto {
+  newPassword: string;
+}
+```
+
+---
+
+### `src/auth/interfaces/auth.service.interface.ts`
+
+```typescript
+export interface IAuthService {
+  registerWithOTP(dto: IRegisterDto): Promise<IRegisterResult>;
+  verifyRegisterOtp(dto: IVerifyRegisterOtpDto): Promise<ISanitizedUser>;
+  resendRegisterOtp(dto: IResendRegisterOtpDto): Promise<IRegisterResult>;
+  sendChangePasswordOtp(dto: IVerifyEmailDto): Promise<IRegisterResult>;
+  verifyChangePasswordOtp(res: Response, dto: IChangePasswordVerifyDto): Promise<IPasswordResetResult>;
+  resetPassword(cookieResetToken: string, res: Response, dto: IResetPasswordDto): Promise<ISanitizedUser>;
+  validateUser(userNameOrEmail: string, password: string): Promise<ILocalValidateResult | null>;
+  login(user: ISanitizedUser, res: Response, deviceId: string): Promise<ILoginResult>;
+  refreshToken(oldCookieRefreshToken: string, res: Response): Promise<ILoginResult>;
+  googleLogin(googleUser: IGoogleUser, res: Response, deviceId: string): Promise<ILoginResult>;
+  logout(user: ISanitizedUser, oldCookieRefreshToken: string, res: Response): Promise<boolean>;
+  logoutAll(user: ISanitizedUser, res: Response): Promise<boolean>;
+}
+
+export interface ITokenService {
+  login(user: ISanitizedUser, res: Response, deviceId: string): Promise<ILoginResult>;
+  logout(userId: string, refreshToken: string, res: Response): Promise<boolean>;
+  logoutAll(userId: string, res: Response): Promise<boolean>;
+}
+
+// pure OTP logic — no DB access; caller handles DB operations via callbacks
+export interface IOtpService {
+  generate(): Promise<IOtpGenerationResult>;
+  assertFormat(otp: string): void;
+  assertNoCooldown(resendAfter: Date | null | undefined): void;
+  verify(
+    otp: string,
+    record: { otpHash: string; otpExpiresAt: Date; attemptCount: number },
+    onCleanup: () => Promise<void>,
+    onIncrementAttempt: () => Promise<number>,
+  ): Promise<void>;
+}
+
+export interface IRegisterService {
+  register(dto: IRegisterDto): Promise<IRegisterResult>;
+  verifyOtp(dto: IVerifyRegisterOtpDto): Promise<ISanitizedUser>;
+  resendOtp(email: string): Promise<IRegisterResult>;
+}
+
+export interface IPasswordService {
+  sendOtp(dto: IVerifyEmailDto): Promise<IRegisterResult>;
+  verifyOtp(res: Response, dto: IChangePasswordVerifyDto): Promise<IPasswordResetResult>;
+  resetPassword(cookieResetToken: string, res: Response, dto: IResetPasswordDto): Promise<ISanitizedUser>;
+}
+
+export interface IGoogleService {
+  login(googleUser: IGoogleUser, res: Response, deviceId: string): Promise<ILoginResult>;
+}
+
+export interface IUserUpdateOtpService {
+  requestUpdate(userId: string, dto: RequestUpdateUserOtpDto): Promise<IUserUpdateOtpRequestResult>;
+  verifyAndApplyUpdate(userId: string, otp: string): Promise<{ message: string; data: IUserEntity }>;
+}
+```
+
+---
+
+### `src/auth/interfaces/auth.controller.interface.ts`
+
+```typescript
+export interface IAuthController {
+  register(dto: IRegisterDto): Promise<IApiResponse<{ otpExpire: string }>>;
+  verifyRegisterOtp(dto: IVerifyRegisterOtpDto): Promise<IApiResponse<ISanitizedUser>>;
+  resendRegisterOtp(dto: IResendRegisterOtpDto): Promise<IApiResponse<{ otpExpire: string }>>;
+  login(res: Response, user: ISanitizedUser, dto: ILoginDto, deviceId: string): Promise<IApiResponse<ILoginResult>>;
+  refreshToken(res: Response, req: Request): Promise<IApiResponse<ILoginResult>>;
+  getProfile(user: ISanitizedUser): Promise<IApiResponse<{ user: ISanitizedUser }>>;
+  changePasswordWithOtp(dto: IVerifyEmailDto): Promise<IApiResponse<{ otpExpire: string }>>;
+  verifyChangePasswordOtp(res: Response, dto: IChangePasswordVerifyDto): Promise<IApiResponse<IPasswordResetResult>>;
+  resetPassword(req: Request, res: Response, dto: IResetPasswordDto): Promise<IApiResponse<ISanitizedUser>>;
+  logout(res: Response, req: Request, user: ISanitizedUser): Promise<IApiResponse<{ result: boolean }>>;
+  logoutAll(res: Response, user: ISanitizedUser): Promise<IApiResponse<{ result: boolean }>>;
+  googleAuth(): void;
+  googleAuthRedirect(googleUser: IGoogleUser, deviceId: string, res: Response): Promise<void | IApiResponse<ILoginResult>>;
+}
+```
+
+---
+
+### `src/users/interfaces/users.types.ts`
+
+```typescript
+export interface ICreateUserDto {
+  email: string;
+  userName: string;
+  password: string;
+  roleName?: string;
+}
+
+// for profile update — excludes password and roleName
+export interface IUpdateUserDto extends Omit<ICreateUserDto, 'roleName' | 'password'> {
+  description?: string | undefined;
+}
+
+export interface IUpdateUserRoleDto {
+  roleNameOrId: string;
+}
+
+export interface IUpdateUserAvatarOrBGDto {
+  typeImg: UserImageType; // enum: 'avatar' | 'background'
+}
+
+// full user data returned by UsersService (no password field)
+export interface IUserEntity {
+  id: string;
+  email: string;
+  userName: string;
+  googleId?: string | null;
+  accountType: string;
+  avatarUrl?: string | null;
+  backgroundUrl?: string | null;
+  description?: string | null;
+  roleId: string;
+  roleName: string;
+}
+
+export interface IUserEntityWithPassword extends IUserEntity {
+  password: string | null;
+}
+
+// special response for the request-otp endpoint — has extra skipOtp field outside the standard structure
+export interface IRequestUpdateOtpApiResponse {
+  statusCode: number;
+  message: string;
+  skipOtp: boolean;
+  data: IUserEntity | { targetEmail: string; changes: string[] };
+}
+```
+
+**Key Points:**
+- Always use `import type` when importing interfaces to prevent circular dependencies and avoid emitting unnecessary JS
+- `ISanitizedUser` is used everywhere user data needs to be returned — never return raw Prisma objects outside the service layer
+- `IPasswordResetResult` only has `expiresIn` because the reset token lives in an httpOnly cookie, not in the response body
+- `IOtpService.verify()` uses the **callback pattern** — the service has no direct DB access; the caller provides cleanup and attempt-increment callbacks
+- `IAuthService.resetPassword()` receives `cookieResetToken: string` (extracted from cookie before calling the service) rather than the full `Request` object
