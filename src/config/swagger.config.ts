@@ -36,6 +36,8 @@ export default class ConfigSwagger {
             swaggerOptions: {
                 persistAuthorization: true,
             },
+            jsonDocumentUrl: '/swagger-json', /* This is the default URL for the JSON document, but we can customize it if needed */
+            yamlDocumentUrl: '/swagger-yaml', /* This is the default URL for the YAML document, but we can customize it if needed */
         });
     }
 }
