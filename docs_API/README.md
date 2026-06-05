@@ -19,6 +19,7 @@ A reusable NestJS authentication starter. Every endpoint, model, request body, a
 | [9](#9-role-endpoints) | Role Endpoints |
 | [10](#10-email-endpoints) | Email Endpoints |
 | [11](#11-complete-env-reference) | Complete Env Reference |
+| [12](#12-rate-limiting) | Rate Limiting |
 
 ---
 
@@ -38,6 +39,7 @@ A reusable NestJS authentication starter. Every endpoint, model, request body, a
 | Profile update | OTP-protected update of email/username; description updates instantly |
 | Role-based access | `@AdminOnly()` guard; `@SkipAdminOnly()` for per-method override |
 | File storage | Supabase Storage for avatar and background images |
+| Rate limiting | `@nestjs/throttler` v6 — 4 named throttlers, per-route override via `@Throttle()` |
 
 ---
 
@@ -158,6 +160,7 @@ All errors use a consistent structure produced by `AllExceptionsFilter`:
 | `NOT_FOUND` | 404 | Resource not found |
 | `CONFLICT` | 409 | Business rule violation (duplicate, OTP error, etc.) |
 | `INTERNAL_SERVER_ERROR` | 500 | Unexpected server error |
+| `HTTP_EXCEPTION` | 429 | Rate limit exceeded (`ThrottlerGuard`) |
 
 ### Validation Error Detail
 
@@ -1433,6 +1436,51 @@ UPSTASH_REDIS_REST_TOKEN=""
 
 ---
 
+## 12 Rate Limiting
+
+This API uses [`@nestjs/throttler`](https://docs.nestjs.com/security/rate-limiting) v6 to protect endpoints from brute-force attacks and email spam.
+
+### Global defaults
+
+`ThrottlerGuard` is registered globally — every route is throttled by the `default` throttler unless explicitly overridden.
+
+| Throttler name | Window (TTL) | Max requests |
+|---|---|---|
+| `default` | 60 s | 100 |
+| `short-term` | 10 s | 20 |
+| `medium-term` | 300 s | 500 |
+| `long-term` | 3600 s | 1000 |
+
+### Auth endpoint overrides
+
+Sensitive auth endpoints override the `default` with the stricter `short-term` throttler:
+
+| Endpoint | Limit |
+|---|---|
+| `POST /auth/register` | 5 / 10s |
+| `POST /auth/verify-register-otp` | 5 / 10s |
+| `POST /auth/resend-register-otp` | 3 / 10s |
+| `POST /auth/login` | 5 / 10s |
+| `POST /auth/change-password/send-otp` | 3 / 10s |
+| `POST /auth/change-password/verify-otp` | 5 / 10s |
+| `POST /auth/change-password/reset` | 5 / 10s |
+
+### Rate limit exceeded — `429 Too Many Requests`
+
+```json
+{
+  "statusCode": 429,
+  "message": "You have made 6 requests. Rate limit exceeded, Try again in 10 seconds.",
+  "code": "HTTP_EXCEPTION",
+  "timestamp": "2026-06-05T10:00:00.000Z",
+  "path": "/api/v1/auth/login"
+}
+```
+
+Tracking is **per client IP**. Behind a reverse proxy, configure `trust proxy` in `main.ts` so the real client IP is used instead of the proxy's IP.
+
+---
+
 ## Quick Reference
 
 ### Auth Flow Summary
@@ -1472,21 +1520,21 @@ Google OAuth
 
 ### Endpoint Access Summary
 
-| Endpoint | Method | Access |
-|---|---|---|
-| `/auth/register` | POST | Public |
-| `/auth/verify-register-otp` | POST | Public |
-| `/auth/resend-register-otp` | POST | Public |
-| `/auth/login` | POST | Public |
-| `/auth/refresh` | POST | Public |
-| `/auth/profile` | GET | JWT |
-| `/auth/change-password/send-otp` | POST | Public |
-| `/auth/change-password/verify-otp` | POST | Public |
-| `/auth/change-password/reset` | POST | Public |
-| `/auth/logout` | POST | JWT |
-| `/auth/logout-all` | POST | JWT |
-| `/auth/google` | GET | Public |
-| `/auth/google/callback` | GET | Public |
+| Endpoint | Method | Access | Rate Limit |
+|---|---|---|---|
+| `/auth/register` | POST | Public | 5 / 10s |
+| `/auth/verify-register-otp` | POST | Public | 5 / 10s |
+| `/auth/resend-register-otp` | POST | Public | 3 / 10s |
+| `/auth/login` | POST | Public | 5 / 10s |
+| `/auth/refresh` | POST | Public | 100 / 60s |
+| `/auth/profile` | GET | JWT | 100 / 60s |
+| `/auth/change-password/send-otp` | POST | Public | 3 / 10s |
+| `/auth/change-password/verify-otp` | POST | Public | 5 / 10s |
+| `/auth/change-password/reset` | POST | Public | 5 / 10s |
+| `/auth/logout` | POST | JWT | 100 / 60s |
+| `/auth/logout-all` | POST | JWT | 100 / 60s |
+| `/auth/google` | GET | Public | 100 / 60s |
+| `/auth/google/callback` | GET | Public | 100 / 60s |
 | `/users` | POST | Admin |
 | `/users` | GET | Admin |
 | `/users/:id` | GET | Admin |

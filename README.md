@@ -129,6 +129,7 @@ Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 | [23](#23-otp-profile-update--change-email-or-username-with-otp) | OTP Profile Update |
 | [24](#24-path-alias--absolute-import-configuration) | Path Alias `@/` |
 | [25](#25-typescript-interfaces--complete-reference) | TypeScript Interfaces |
+| [26](#26-rate-limiting--request-throttling-with-nestjsthrottler) | Rate Limiting (`@nestjs/throttler`) |
 
 ---
 
@@ -2058,3 +2059,154 @@ export interface IRequestUpdateOtpApiResponse {
 - `IPasswordResetResult` only has `expiresIn` because the reset token lives in an httpOnly cookie, not in the response body
 - `IOtpService.verify()` uses the **callback pattern** — the service has no direct DB access; the caller provides cleanup and attempt-increment callbacks
 - `IAuthService.resetPassword()` receives `cookieResetToken: string` (extracted from cookie before calling the service) rather than the full `Request` object
+
+---
+
+## 26 Rate Limiting — Request Throttling with `@nestjs/throttler`
+
+Protect endpoints from brute-force attacks and email spam by limiting the number of requests per IP per time window.
+
+- **Install:**
+```bash
+pnpm add @nestjs/throttler
+```
+
+- **Version used in this project:** `@nestjs/throttler ^6.5.0`
+- **Official docs:** [Rate Limiting - NestJS](https://docs.nestjs.com/security/rate-limiting)
+
+---
+
+### Step 1: Create `ThrottlerConfigModule` in `src/core/throttler-config.module.ts`
+
+Wrap `ThrottlerModule.forRoot()` in a `@Module` class to keep `AppModule` imports clean and follow NestJS naming conventions.
+
+```typescript
+import { Module } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
+
+@Module({
+  imports: [
+    ThrottlerModule.forRoot({
+      throttlers: [
+        { name: 'default',     ttl: 60,   limit: 100  },
+        { name: 'short-term',  ttl: 10,   limit: 20   },
+        { name: 'medium-term', ttl: 300,  limit: 500  },
+        { name: 'long-term',   ttl: 3600, limit: 1000 },
+      ],
+      errorMessage(context, throttlerLimitDetail) {
+        return `You have made ${throttlerLimitDetail.totalHits} requests. Rate limit exceeded, Try again in ${throttlerLimitDetail.ttl} seconds.`;
+      },
+    }),
+  ],
+  exports: [ThrottlerModule],
+})
+export class ThrottlerConfigModule {}
+```
+
+---
+
+### Step 2: Register `ThrottlerGuard` globally in `app.module.ts`
+
+```typescript
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerConfigModule } from '@/core/throttler-config.module';
+
+@Module({
+  imports: [
+    ThrottlerConfigModule,
+    // ... other modules
+  ],
+  providers: [
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard }, // all routes use 'default' throttler unless overridden
+  ],
+})
+export class AppModule {}
+```
+
+---
+
+### Step 3: Override per route with `@Throttle()`
+
+In v6+, `@Throttle()` accepts an object keyed by throttler name. Only the specified throttlers are overridden — others still apply.
+
+```typescript
+import { Throttle } from '@nestjs/throttler';
+
+// Brute-force protection: max 5 attempts per 10 seconds
+@Throttle({ 'short-term': { ttl: 10, limit: 5 } })
+@Post('login')
+async login() { ... }
+
+// Email spam prevention: max 3 sends per 10 seconds
+@Throttle({ 'short-term': { ttl: 10, limit: 3 } })
+@Post('resend-register-otp')
+async resendRegisterOtp() { ... }
+```
+
+---
+
+### Step 4: Skip throttling with `@SkipThrottle()`
+
+```typescript
+import { SkipThrottle } from '@nestjs/throttler';
+
+// Skip all throttlers on this route
+@SkipThrottle()
+@Get('health')
+healthCheck() { ... }
+
+// Skip only 'default', keep 'short-term' active
+@SkipThrottle({ default: true })
+@Get('some-route')
+someRoute() { ... }
+```
+
+---
+
+### Named throttlers in this project
+
+| Name | TTL | Limit | Use case |
+|---|---|---|---|
+| `default` | 60s | 100 req | Applied globally to every route |
+| `short-term` | 10s | 20 req | Auth endpoints — brute-force / email spam |
+| `medium-term` | 300s | 500 req | Bulk or moderate-frequency operations |
+| `long-term` | 3600s | 1000 req | Hourly ceiling across all requests |
+
+---
+
+### Applied limits on auth controller
+
+| Endpoint | Override | Limit |
+|---|---|---|
+| `POST /auth/register` | `short-term` | 5 / 10s |
+| `POST /auth/verify-register-otp` | `short-term` | 5 / 10s |
+| `POST /auth/resend-register-otp` | `short-term` | 3 / 10s |
+| `POST /auth/login` | `short-term` | 5 / 10s |
+| `POST /auth/change-password/send-otp` | `short-term` | 3 / 10s |
+| `POST /auth/change-password/verify-otp` | `short-term` | 5 / 10s |
+| `POST /auth/change-password/reset` | `short-term` | 5 / 10s |
+| All other routes | `default` | 100 / 60s |
+
+---
+
+### Rate limit exceeded response — `429 Too Many Requests`
+
+```json
+{
+  "statusCode": 429,
+  "message": "You have made 6 requests. Rate limit exceeded, Try again in 10 seconds.",
+  "code": "HTTP_EXCEPTION",
+  "timestamp": "2026-06-05T10:00:00.000Z",
+  "path": "/api/v1/auth/login"
+}
+```
+
+---
+
+**Key Points:**
+- `ThrottlerGuard` tracks requests **per client IP** by default. Behind a reverse proxy (Nginx, etc.), add `app.set('trust proxy', 1)` in `main.ts` so `req.ip` resolves to the real client IP instead of the proxy's IP
+- All named throttlers run **simultaneously** — a request must pass every configured throttler
+- `@Throttle({ name: { ttl, limit } })` overrides only the listed throttler(s); un-listed throttlers still apply with their original values
+- `ttl` unit in `@nestjs/throttler` v6+ is **seconds** (not milliseconds)
