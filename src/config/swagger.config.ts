@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
-export default class ConfigSwagger {
+export default class SwaggerConfig {
     public static setup = (app: NestExpressApplication): void => {
         const configService: ConfigService = app.get(ConfigService);
         const config = new DocumentBuilder()
