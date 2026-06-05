@@ -53,6 +53,7 @@ export class UserUpdateOtpService implements IUserUpdateOtpService {
             }
         }
 
+        // Xác định có gì thay đổi để đưa vào message và quyết định gửi OTP đến đâu
         const emailChanged = newEmail !== undefined && newEmail !== currentUser.email;
         const userNameChanged = newUserName !== undefined && newUserName !== currentUser.userName;
         const descriptionChanged = newDescription !== undefined && newDescription !== currentUser.description;

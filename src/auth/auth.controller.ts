@@ -12,6 +12,7 @@ import { ApiOperation } from '@nestjs/swagger';
 import { UnauthorizedException, InternalServerException, NotFoundException } from '@/common/exceptions/app.exception';
 import type { IPasswordResetResult, ISanitizedUser } from '@/auth/interfaces/auth.types';
 import type { IAuthController } from '@/auth/interfaces/auth.controller.interface';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController implements IAuthController {
@@ -37,6 +38,7 @@ export class AuthController implements IAuthController {
     }
 
     @Public()
+    @Throttle({ 'short-term': { ttl: 10, limit: 5 } })
     @ApiOperation({ summary: 'Register a new user' })
     @Post('register')
     async register(@Body() registerDto: RegisterDto) {
@@ -45,6 +47,7 @@ export class AuthController implements IAuthController {
     }
 
     @Public()
+    @Throttle({ 'short-term': { ttl: 10, limit: 5 } })
     @Post('verify-register-otp')
     @ApiOperation({ summary: 'Verify OTP and complete account registration' })
     async verifyRegisterOtp(@Body() verifyRegisterOtpDto: VerifyRegisterOtpDto) {
@@ -53,6 +56,7 @@ export class AuthController implements IAuthController {
     }
 
     @Public()
+    @Throttle({ 'short-term': { ttl: 10, limit: 3 } })
     @Post('resend-register-otp')
     @ApiOperation({ summary: 'Resend OTP to registered email during registration process' })
     async resendRegisterOtp(@Body() resendRegisterOtpDto: ResendRegisterOtpDto) {
@@ -61,6 +65,7 @@ export class AuthController implements IAuthController {
     }
 
     @Public()
+    @Throttle({ 'short-term': { ttl: 10, limit: 5 } })
     @UseGuards(LocalAuthGuard)
     @ApiOperation({ summary: 'Login a user for a session and cookie management' })
     @Post('login')
@@ -112,6 +117,7 @@ export class AuthController implements IAuthController {
     }
 
     @Public()
+    @Throttle({ 'short-term': { ttl: 10, limit: 3 } })
     @Post('change-password/send-otp')
     @ApiOperation({ summary: 'Change password for the currently authenticated user' })
     async changePasswordWithOtp(@Body() verifyEmailDto: VerifyEmailDto) {
@@ -124,6 +130,7 @@ export class AuthController implements IAuthController {
     }
 
     @Public()
+    @Throttle({ 'short-term': { ttl: 10, limit: 5 } })
     @Post('change-password/verify-otp')
     @ApiOperation({ summary: 'Verify OTP for password reset — returns a short-lived reset token to use in /change-password/reset' })
     async verifyChangePasswordOtp(@Res({ passthrough: true }) res: Response, @Body() changePasswordVerifyDto: ChangePasswordVerifyDto) {
@@ -136,6 +143,7 @@ export class AuthController implements IAuthController {
     }
 
     @Public()
+    @Throttle({ 'short-term': { ttl: 10, limit: 5 } })
     @Post('change-password/reset')
     @ApiOperation({ summary: 'Set new password using the reset token received after OTP verification' })
     async resetPassword(@Req() req: Request, @Res({ passthrough: true }) res: Response, @Body() resetPasswordDto: ResetPasswordDto) {

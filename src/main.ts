@@ -2,7 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from '@/app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
-import ConfigSwagger from '@/config/swagger.config';
+import SwaggerConfig from '@/config/swagger.config';
 import cookieParser from 'cookie-parser';
 import { setupCors } from '@/config/cors.config';
 import { validationConfig } from '@/config/validation.config';
@@ -13,7 +13,7 @@ async function bootstrap() {
   const configService: ConfigService = app.get(ConfigService);
 
   if (configService.get<string>('MODE') === 'development') {
-    ConfigSwagger.setup(app);
+    SwaggerConfig.setup(app);
     console.log('Swagger documentation is enabled in development mode');
   };
 

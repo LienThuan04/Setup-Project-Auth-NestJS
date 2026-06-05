@@ -7,7 +7,6 @@ import { PrismaModule } from '@/prisma/prisma.module';
 import { SessionModule } from '@/session/session.module';
 import { RoleModule } from '@/role/role.module';
 import { SeedDbModule } from '@/seed-db/seed-db.module';
-import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from '@/auth/auth.module';
 import { FilesModule } from '@/files/files.module';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -18,17 +17,18 @@ import { LoggingInterceptor } from '@/common/interceptors/logging.interceptor';
 import { TransformInterceptor } from '@/common/interceptors/transform.interceptor';
 import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
 import { JwtAuthGuard } from '@/lib/passport/jwt-auth.guard';
+import { ThrottlerGuard } from '@nestjs/throttler';
+import { EnvConfigModule } from '@/core/env-config.module';
+import { ThrottlerConfigModule } from '@/core/throttler-config.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: ['.env.development.local', '.env.development', '.env.local', '.env'],
-     }),
+    EnvConfigModule,
     UsersModule, PrismaModule, SessionModule, RoleModule,
     SeedDbModule,
     ScheduleModule.forRoot(),
-    AuthModule, FilesModule, JobsModule, EmailModule, RedisModule
+    AuthModule, FilesModule, JobsModule, EmailModule, RedisModule,
+    ThrottlerConfigModule
   ],
   controllers: [AppController],
   providers: [
@@ -38,6 +38,7 @@ import { JwtAuthGuard } from '@/lib/passport/jwt-auth.guard';
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}
