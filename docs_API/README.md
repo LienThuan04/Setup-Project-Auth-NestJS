@@ -20,6 +20,7 @@ A reusable NestJS authentication starter. Every endpoint, model, request body, a
 | [10](#10-email-endpoints) | Email Endpoints |
 | [11](#11-complete-env-reference) | Complete Env Reference |
 | [12](#12-rate-limiting) | Rate Limiting |
+| [13](#13-code-documentation-compodoc) | Code Documentation (Compodoc) |
 
 ---
 
@@ -1551,3 +1552,66 @@ Google OAuth
 | `/role/:id` | DELETE | Admin |
 | `/email/test-email` | POST | Public |
 | `/email/send-register-otp` | POST | Public |
+
+---
+
+## 13 Code Documentation (Compodoc)
+
+This project uses [`@compodoc/compodoc`](https://compodoc.app/) to generate static HTML documentation from TypeScript source code (modules, controllers, services, DTOs, guards, decorators, etc.).
+
+### Installation
+
+Already included as a dev dependency:
+
+```bash
+pnpm install
+```
+
+### Generate documentation
+
+```bash
+npx @compodoc/compodoc -p tsconfig.json -s
+```
+
+| Flag | Meaning |
+|---|---|
+| `-p tsconfig.json` | Point to the TypeScript config |
+| `-s` | Serve the docs locally after generating (default port `8080`) |
+| `--port 8888` | Change the serve port (optional) |
+| `--output documentation` | Output folder (default `documentation/`) |
+
+Or add a script to `package.json` for convenience:
+
+```json
+"scripts": {
+  "doc": "compodoc -p tsconfig.json",
+  "doc:serve": "compodoc -p tsconfig.json -s --port 8888"
+}
+```
+
+Then run:
+
+```bash
+pnpm doc:serve
+```
+
+### Output
+
+Generated files go to the `/documentation` folder at project root. This folder is listed in `.gitignore` and is **not committed to the repository**.
+
+Open `documentation/index.html` in a browser, or use the `-s` flag to serve it automatically.
+
+### What is documented
+
+| Source | Documented as |
+|---|---|
+| `*.module.ts` | Modules |
+| `*.controller.ts` | Controllers & routes |
+| `*.service.ts` | Services & methods |
+| `*.dto.ts` | DTOs & validation rules |
+| `*.guard.ts` | Guards |
+| `*.decorator.ts` | Custom decorators |
+| `*.interceptor.ts` | Interceptors |
+| `*.filter.ts` | Exception filters |
+
+JSDoc comments (`/** ... */`) on classes and methods are rendered as descriptions in the generated docs.
