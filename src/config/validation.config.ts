@@ -1,7 +1,6 @@
-import { BadRequestException, ValidationPipe } from "@nestjs/common";
-import { NestExpressApplication } from "@nestjs/platform-express";
+import { BadRequestException, INestApplication, ValidationPipe } from "@nestjs/common";
 
-export const validationConfig: (app: NestExpressApplication) => void = (app: NestExpressApplication) => {
+export const validationConfig: (app: INestApplication) => void = (app: INestApplication) => {
     app.useGlobalPipes(
         new ValidationPipe({
             whitelist: true, //tự động loại bỏ các thuộc tính không được định nghĩa trong DTOs

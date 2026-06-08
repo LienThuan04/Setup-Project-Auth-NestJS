@@ -1,8 +1,8 @@
 {
-  "name": "project_umc",
+  "name": "project_Base_Auth",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "This is a base authentication project built with NestJS, Prisma, and Supabase. It provides a solid foundation for implementing user authentication and authorization features in your applications. The project includes features such as JWT-based authentication, password hashing, and integration with Supabase for database management.",
+  "author": "LianHarman(LienThuan04)",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
@@ -53,6 +53,7 @@
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
+    "@compodoc/compodoc": "^1.2.1",
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",

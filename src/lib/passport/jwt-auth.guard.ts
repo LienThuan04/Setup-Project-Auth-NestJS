@@ -3,6 +3,7 @@ import { ExecutionContext, ForbiddenException, Injectable, UnauthorizedException
 import { Reflector } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
+import type { IJwtPayload } from '@/auth/interfaces/auth.types';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -27,8 +28,8 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     }
 
     // Override the default handleRequest method to include additional checks for admin-only routes
-    handleRequest(err: any, user: any, info: any, context: ExecutionContext) {
-        const request = context.switchToHttp().getRequest();
+    // user/err follow Passport's IAuthGuard contract (any); cast internally where typed access is needed
+    handleRequest(err: any, user: any, info: Error | undefined, context: ExecutionContext) {
         if (err || !user) {
             throw err || new UnauthorizedException('Invalid or expired token');
         } else if (info) {
@@ -45,7 +46,8 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
             if (adminRoleName === undefined) {
                 throw new Error('Admin role name is not defined in environment variables');
             }
-            if (user.roleName !== adminRoleName) {
+            const payload = user as IJwtPayload;
+            if (payload.roleName !== adminRoleName) {
                 throw new ForbiddenException('Access denied: Administrators only. Please log in with an administrator account to continue.');
             }
         }

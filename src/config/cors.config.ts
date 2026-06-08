@@ -1,7 +1,7 @@
+import { INestApplication } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { NestExpressApplication } from "@nestjs/platform-express";
 
-export const setupCors = (app: NestExpressApplication) => {
+export const setupCors = (app: INestApplication) => {
   const configService: ConfigService = app.get(ConfigService);
 
   app.enableCors({

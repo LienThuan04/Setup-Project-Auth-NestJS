@@ -1,8 +1,7 @@
-import { VersioningType } from "@nestjs/common";
+import { INestApplication, VersioningType } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { NestExpressApplication } from "@nestjs/platform-express";
 
-export const setupAppConfig: (app: NestExpressApplication) => { globalPrefix: string; version: string } = (app: NestExpressApplication) => {
+export const setupAppConfig: (app: INestApplication) => { globalPrefix: string; version: string } = (app: INestApplication) => {
     const configService: ConfigService = app.get(ConfigService);
     const globalPrefix: string = configService.get<string>('GLOBAL_PREFIX') || 'api';
       const version: string = configService.get<string>('VERSION') || '1';

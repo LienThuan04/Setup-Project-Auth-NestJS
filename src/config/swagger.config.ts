@@ -1,11 +1,11 @@
 import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 export default class SwaggerConfig {
-    public static setup = (app: NestExpressApplication): void => {
+    public static setup = (app: INestApplication): void => {
         const configService: ConfigService = app.get(ConfigService);
         const config = new DocumentBuilder()
             .setTitle('Project')
