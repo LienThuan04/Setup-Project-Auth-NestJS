@@ -4,14 +4,12 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { roles, users } from '@/seed-db/seed/sample';
 import { ConfigService } from '@nestjs/config';
 import { generatePasswordHash } from '@/lib/bcrypt/bcrypt';
-import { FilesService } from '@/files/files.service';
 
 @Injectable()
 export class SeedDbService implements OnModuleInit {
     constructor(
         private readonly prisma: PrismaService,
         private readonly configService: ConfigService,
-        private readonly filesService: FilesService
     ) { }
 
     private readonly logger = new Logger(SeedDbService.name);
@@ -100,17 +98,15 @@ export class SeedDbService implements OnModuleInit {
 
     async clear() {
         try {
-            await this.filesService.clearBucketStorage();
             await this.prisma.pendingRegistration.deleteMany();
             await this.prisma.pendingUserUpdate.deleteMany();
             await this.prisma.session.deleteMany();
-            await this.prisma.file.deleteMany();
             await this.prisma.user.deleteMany();
             await this.prisma.role.deleteMany();
 
-            this.logger.log('Cleared database records and Supabase Storage successfully.');
+            this.logger.log('Cleared database records successfully.');
         } catch (error: any) {
-            this.logger.error(`Error during clearing database and Supabase Storage: ${error.message}`);
+            this.logger.error(`Error during clearing database: ${error.message}`);
             throw error;
         }
     }
