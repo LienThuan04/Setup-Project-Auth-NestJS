@@ -1630,7 +1630,7 @@ Automatically clean up expired sessions and stale pending registrations every mi
 ```env
   SEED_DB=true     # true → run seeding on startup
   CLEAR_DB=false   # false → seed without clearing existing data
-                   # true  → clear entire DB + Supabase Storage before seeding (DANGEROUS in production!)
+                   # true  → clear entire DB before seeding (DANGEROUS in production!)
   DEFAULT_PASSWORD="123456"  # default password for seeded accounts
 ```
 
