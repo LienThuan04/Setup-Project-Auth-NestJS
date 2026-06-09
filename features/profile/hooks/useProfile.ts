@@ -144,7 +144,7 @@ export function useProfile() {
 
     const formData = new FormData();
     formData.append('imgProfile', file);
-    formData.append('typeImg', typeImg);
+    formData.append('typeImgProfile', typeImg);
 
     setIsUploadingImg(typeImg);
     try {
