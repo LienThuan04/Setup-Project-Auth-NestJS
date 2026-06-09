@@ -16,7 +16,7 @@ export interface IUpdateUserRoleDto {
 }
 
 export interface IUpdateUserAvatarOrBGDto {
-  typeImg: UserImageType;
+  typeImgProfile: UserImageType;
 }
 
 export interface IUserEntity {

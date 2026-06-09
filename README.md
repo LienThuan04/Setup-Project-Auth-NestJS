@@ -2023,7 +2023,7 @@ export interface IUpdateUserRoleDto {
 }
 
 export interface IUpdateUserAvatarOrBGDto {
-  typeImg: UserImageType; // enum: 'avatar' | 'background'
+  typeImgProfile: UserImageType; // enum: 'avatar' | 'background'
 }
 
 // full user data returned by UsersService (no password field)

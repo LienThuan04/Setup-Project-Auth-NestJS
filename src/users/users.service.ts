@@ -1,19 +1,17 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CreateUserDto } from '@/users/dto/create-user.dto';
-import { UpdateUserAvatarOrBGDto, UpdateUserDto } from '@/users/dto/update-user.dto';
+import { UpdateUserDto } from '@/users/dto/update-user.dto';
 import { PrismaService } from '@/prisma/prisma.service';
 import { RoleService } from '@/role/role.service';
 import { ConfigService } from '@nestjs/config';
 import { ensurePasswordHash } from '@/lib/bcrypt/bcrypt';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/client';
-import { FilesService } from '@/files/files.service';
-import { ConflictException, InternalServerException, NotFoundException, ValidationException, AppException } from '@/common/exceptions/app.exception';
+import { ConflictException, InternalServerException, NotFoundException, AppException } from '@/common/exceptions/app.exception';
 import { UserImageType } from '@/users/enums/UserImageType.enum';
 import type { IUsersService } from '@/users/interfaces/users.service.interface';
 import { toUserEntity } from '@/users/helpers/toUserEntity.helper';
 import { GetUsersQueryDto } from '@/users/dto/GetUsersQueryDto.dto';
 import { buildPaginationMeta, getPaginationParams } from '@/common/pagination/pagination.helper';
-import { UserEntity } from '@/users/entities/user.entity';
 
 @Injectable()
 export class UsersService implements IUsersService {
@@ -21,7 +19,6 @@ export class UsersService implements IUsersService {
     private readonly prisma: PrismaService,
     private readonly roleService: RoleService,
     private readonly configService: ConfigService,
-    private readonly filesService: FilesService
   ) { }
 
   async checkEmailOrUsernameExists(email: string, userName: string, excludeId?: string) {
@@ -188,7 +185,7 @@ export class UsersService implements IUsersService {
         }
       }
 
-      // Google account: không cho đổi email và username (chỉ đổi được description/role/avatar)
+      // Google account: email và username không thể đổi
       if (user.accountType === 'google' || user.googleId) {
         if (updateUserDto.email && updateUserDto.email !== user.email) {
           throw new ConflictException('Email cannot be changed for Google-authenticated accounts.');
@@ -260,29 +257,21 @@ export class UsersService implements IUsersService {
     }
   }
 
-  async updateAvatarOrBG(id: string, fileAvatar: Express.Multer.File, updateUserAvatarOrBGDto: UpdateUserAvatarOrBGDto) {
+  async updateAvatarOrBG(id: string, fileUrl: string, typeImgProfile: UserImageType) {
     try {
-      const user = await this.prisma.user.findUnique({
-        where: { id },
-      });
+      const user = await this.prisma.user.findUnique({ where: { id } });
       if (!user) {
         throw new NotFoundException(`User with ID ${id} not found`);
       }
-      if (!fileAvatar) {
-        throw new ValidationException('No file uploaded');
-      }
-      const uploadedFile = await this.filesService.uploadSingleFile(`users/${id}/profile`, updateUserAvatarOrBGDto.typeImg, fileAvatar, id);
       const updatedUser = await this.prisma.user.update({
         where: { id },
         data: {
-          ...(updateUserAvatarOrBGDto.typeImg === UserImageType.AVATAR ? { avatarUrl: uploadedFile.fileUrl } : { backgroundUrl: uploadedFile.fileUrl }),
+          ...(typeImgProfile === UserImageType.AVATAR ? { avatarUrl: fileUrl } : { backgroundUrl: fileUrl }),
         },
         include: { role: { select: { roleName: true } } }
       });
       return toUserEntity(updatedUser);
-
     } catch (error: any) {
-      console.error('Error updating user avatar:', error);
       if (error instanceof AppException) {
         throw error;
       }
