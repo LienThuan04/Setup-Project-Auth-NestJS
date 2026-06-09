@@ -26,7 +26,7 @@ export class UpdateUserAvatarOrBGDto {
         example: UserImageType.AVATAR,
     })
     @IsEnum(UserImageType, { message: 'Type must be either avatar or background' })
-    typeImg!: UserImageType;
+    typeImgProfile!: UserImageType;
 }
 
 // --- OTP Update Flow DTOs ---

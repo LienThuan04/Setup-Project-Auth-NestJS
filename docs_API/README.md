@@ -1095,7 +1095,7 @@ Upload and set a user's avatar or background image. File is stored in Supabase S
 | Field | Type | Rules |
 |---|---|---|
 | `imgProfile` | file | JPEG · JPG · PNG · WEBP · GIF, max **10 MB** |
-| `typeImg` | string | `"avatar"` or `"background"` |
+| `typeImgProfile` | string | `"avatar"` or `"background"` |
 
 **Success `200`:**
 

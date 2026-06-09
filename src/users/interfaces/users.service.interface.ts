@@ -1,9 +1,9 @@
+import type { UserImageType } from '@/users/enums/UserImageType.enum';
 import type { GetUsersQueryDto } from '@/users/dto/GetUsersQueryDto.dto';
 import type { PaginatedResult } from '@/common/pagination/pagination.interface';
 import type {
   ICreateUserDto,
   IUpdateUserDto,
-  IUpdateUserAvatarOrBGDto,
   IUserEntity,
   IUserEntityWithPassword,
 } from '@/users/interfaces/users.types';
@@ -16,6 +16,6 @@ export interface IUsersService {
   findOne(id: string): Promise<IUserEntity>;
   update(id: string, updateUserDto: IUpdateUserDto): Promise<IUserEntity>;
   updateRole(id: string, roleNameOrId: string): Promise<IUserEntity>;
-  updateAvatarOrBG(id: string, fileAvatar: Express.Multer.File, updateUserAvatarOrBGDto: IUpdateUserAvatarOrBGDto): Promise<IUserEntity>;
+  updateAvatarOrBG(id: string, fileUrl: string, typeImgProfile: UserImageType): Promise<IUserEntity>;
   remove(id: string): Promise<IUserEntity>;
 }

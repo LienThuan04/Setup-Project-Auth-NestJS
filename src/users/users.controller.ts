@@ -13,7 +13,7 @@ import type { IUsersController } from '@/users/interfaces/users.controller.inter
 import { GetUsersQueryDto } from '@/users/dto/GetUsersQueryDto.dto';
 import { UserUpdateOtpService } from '@/auth/services/user-update-otp.service';
 import type { ISanitizedUser } from '@/auth/interfaces/auth.types';
-import { UserEntity } from '@/users/entities/user.entity';
+import { FilesService } from '@/files/files.service';
 
 @AdminOnly()
 @Controller('users')
@@ -22,6 +22,7 @@ export class UsersController implements IUsersController {
     private readonly usersService: UsersService,
     private readonly userUpdateOtpService: UserUpdateOtpService,
     private readonly configService: ConfigService,
+    private readonly filesService: FilesService,
   ) { }
 
   // method this helps to check if the current user is admin or is modifying their own profile, used in OTP-protected update endpoints
@@ -101,7 +102,6 @@ export class UsersController implements IUsersController {
       data: result.data,
     };
   }
-
   // ============ End OTP-protected update ============
 
   @Patch('role/:id')
@@ -119,42 +119,48 @@ export class UsersController implements IUsersController {
     schema: {
       type: 'object',
       properties: {
-        imgProfile: {
-          type: 'string',
-          format: 'binary',
-        },
-        typeImg: {
-          type: 'string',
-          enum: ['avatar', 'background'],
-        },
+        imgProfile: { type: 'string', format: 'binary' },
+        typeImgProfile: { type: 'string', enum: ['avatar', 'background'] },
       },
-      required: ['imgProfile', 'typeImg'],
+      required: ['imgProfile', 'typeImgProfile'],
     },
   })
   @UseInterceptors(FileInterceptor('imgProfile')) // Tên trường file trong form-data phải trùng với tên này
-  async updateAvatarOrBG(@Param('id') id: string, @User() user: ISanitizedUser, @UploadedFile() imgProfile: Express.Multer.File, @Body() updateUserAvatarOrBGDto: UpdateUserAvatarOrBGDto) {
-    this.assertSelfOrAdmin(user, id); // Chỉ cho phép admin hoặc chính chủ cập nhật avatar/bg
+  async updateAvatarOrBG(
+    @Param('id') id: string,
+    @User() user: ISanitizedUser,
+    @UploadedFile() imgProfile: Express.Multer.File,
+    @Body() updateUserAvatarOrBGDto: UpdateUserAvatarOrBGDto,
+  ) {
+    this.assertSelfOrAdmin(user, id);
     const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/jpg'];
-    const maxSizeInBytes = 10 * 1024 * 1024; // 10MB
     if (!imgProfile) {
-      throw new ValidationException('Image file is required. Please upload an image file for avatar or background.');
+      throw new ValidationException('Image file is required.');
     }
     if (!allowedMimeTypes.includes(imgProfile.mimetype)) {
       throw new ValidationException('Invalid file type. Only JPEG, JPG, PNG, WEBP, and GIF images are allowed.');
     }
-    if (imgProfile.size > maxSizeInBytes) {
+    if (imgProfile.size > 10 * 1024 * 1024) { // 10MB
       throw new ValidationException('File size exceeds the maximum limit of 10MB.');
     }
-    if (updateUserAvatarOrBGDto.typeImg !== UserImageType.AVATAR && updateUserAvatarOrBGDto.typeImg !== UserImageType.BACKGROUND) {
+    if (updateUserAvatarOrBGDto.typeImgProfile !== UserImageType.AVATAR && updateUserAvatarOrBGDto.typeImgProfile !== UserImageType.BACKGROUND) {
       throw new ValidationException('Invalid image type. Only avatar and background images are allowed.');
     }
-    const result = await this.usersService.updateAvatarOrBG(id, imgProfile, updateUserAvatarOrBGDto);
+    const uploadedFile = await this.filesService.uploadSingleFile(
+      `users/${id}/profile`,
+      updateUserAvatarOrBGDto.typeImgProfile,
+      imgProfile,
+      id,
+    );
+    if (!uploadedFile.fileUrl) {
+      throw new ValidationException('File uploaded but public URL is unavailable.');
+    }
+    const result = await this.usersService.updateAvatarOrBG(id, uploadedFile.fileUrl, updateUserAvatarOrBGDto.typeImgProfile);
     return { statusCode: 200, message: 'User avatar updated successfully', data: result };
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a user' })
-  // @ApiResponse({ status: 200, description: 'User deleted successfully', type: UserEntity })
   async remove(@Param('id') id: string) {
     const result = await this.usersService.remove(id);
     return { statusCode: 200, message: 'User deleted successfully', data: result };
