@@ -213,15 +213,17 @@ export class AuthController implements IAuthController {
     @Get('google/callback')
     @ApiOperation({ summary: 'Google Auth Callback' })
     async googleAuthRedirect(@UserGoogle() googleUser: GoogleUser, @DeviceId() deviceId: string, @Res({ passthrough: true }) res: Response) {
-        const result = await this.authService.googleLogin(googleUser, res, deviceId);
-        // Sau khi đăng nhập thành công, bạn thường sẽ muốn redirect người dùng về giao diện Frontend
-        // Ví dụ: return res.redirect('http://localhost:3000/dashboard');
-        const data = {
-            accessToken: result.accessToken,
-            user: result.user,
+        try {
+            const result = await this.authService.googleLogin(googleUser, res, deviceId); 
+            // Sau khi đăng nhập thành công, bạn thường sẽ muốn redirect người dùng về giao diện Frontend
+            // Ví dụ: return res.redirect('http://localhost:3000/dashboard');
+            const data = { accessToken: result.accessToken, user: result.user };
+            const encodedData = Buffer.from(JSON.stringify(data)).toString('base64');
+            res.redirect(`${this.urlClient}/google/callback?data=${encodeURIComponent(encodedData)}`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Google login failed';
+            res.redirect(`${this.urlClient}/login?error=${encodeURIComponent(message)}`);
         }
-        const encodedData = Buffer.from(JSON.stringify(data)).toString('base64');
-        res.redirect(`${this.urlClient}/google/callback?data=${encodeURIComponent(encodedData)}`);
         // return {
         //     statusCode: 200,
         //     message: 'Google Login successful',
