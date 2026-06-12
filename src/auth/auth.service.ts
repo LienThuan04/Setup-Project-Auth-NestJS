@@ -12,6 +12,7 @@ import { TokenService } from '@/auth/services/token.service';
 import { GoogleService } from '@/auth/services/google.service';
 import { PasswordService } from '@/auth/services/password.service';
 import { RegisterService } from '@/auth/services/register.service';
+import { ClientType } from '@/common/enums/client-type.enum';
 import type { ISanitizedUser } from '@/auth/interfaces/auth.types';
 import type { IAuthService } from '@/auth/interfaces/auth.service.interface';
 
@@ -88,9 +89,9 @@ export class AuthService implements IAuthService {
         }
     }
 
-    async verifyChangePasswordOtp(res: Response, changePasswordVerifyDto: ChangePasswordVerifyDto) {
+    async verifyChangePasswordOtp(res: Response, changePasswordVerifyDto: ChangePasswordVerifyDto, clientType: ClientType) {
         try {
-            return await this.passwordService.verifyOtp(res, changePasswordVerifyDto);
+            return await this.passwordService.verifyOtp(res, changePasswordVerifyDto, clientType);
         } catch (error: any) {
             if (error instanceof ConflictException ||
                 error instanceof NotFoundException ||
@@ -101,9 +102,9 @@ export class AuthService implements IAuthService {
         }
     }
 
-    async resetPassword(cookieResetToken: string, res: Response, resetPasswordDto: ResetPasswordDto) {
+    async resetPassword(resetToken: string, res: Response, resetPasswordDto: ResetPasswordDto, clientType: ClientType) {
         try {
-            return await this.passwordService.resetPassword(cookieResetToken, res, resetPasswordDto);
+            return await this.passwordService.resetPassword(resetToken, res, resetPasswordDto, clientType);
         } catch (error: any) {
             if (error instanceof ConflictException ||
                 error instanceof NotFoundException ||
@@ -132,20 +133,20 @@ export class AuthService implements IAuthService {
         return user as ISanitizedUser;
     }
 
-    async login(user: ISanitizedUser, res: Response, deviceId: string) {
+    async login(user: ISanitizedUser, res: Response, deviceId: string, clientType: ClientType) {
         try {
-            return await this.tokenService.login(user, res, deviceId);
+            return await this.tokenService.login(user, res, deviceId, clientType);
         } catch (error: any) {
             throw new InternalServerException(`Failed to login user: ${error.message}`);
         }
     }
 
-    async refreshToken(oldCookieRefreshToken: string, res: Response) {
+    async refreshToken(oldRefreshToken: string, res: Response, clientType: ClientType) {
         try {
-            if (!oldCookieRefreshToken || oldCookieRefreshToken.trim() === '' || oldCookieRefreshToken === 'undefined') {
+            if (!oldRefreshToken || oldRefreshToken.trim() === '' || oldRefreshToken === 'undefined') {
                 throw new ValidationException('Refresh token is missing !');
             }
-            const decodedRefreshToken = this.jwtService.verify(oldCookieRefreshToken, { secret: this.refreshTokenSecret });
+            const decodedRefreshToken = this.jwtService.verify(oldRefreshToken, { secret: this.refreshTokenSecret });
             if (!decodedRefreshToken || typeof decodedRefreshToken === 'string' || !decodedRefreshToken.userId ||
                 !decodedRefreshToken._sub || !decodedRefreshToken.deviceId || typeof decodedRefreshToken.userId !== 'string' ||
                 typeof decodedRefreshToken._sub !== 'object' || typeof decodedRefreshToken._sub.email !== 'string' ||
@@ -154,18 +155,18 @@ export class AuthService implements IAuthService {
                 console.error('Decoded refresh token payload is invalid:', decodedRefreshToken);
                 throw new ValidationException('Invalid refresh token payload');
             }
-            const session = await this.sessionService.findSessionByRefreshTokenAndDeviceId(oldCookieRefreshToken, decodedRefreshToken.deviceId);
+            const session = await this.sessionService.findSessionByRefreshTokenAndDeviceId(oldRefreshToken, decodedRefreshToken.deviceId);
             if (!session) {
-                res.clearCookie(this.refreshTokenName); // Clear invalid refresh token cookie in client
+                if (clientType === ClientType.WEB) res.clearCookie(this.refreshTokenName);
                 throw new ValidationException('Invalid refresh token or session not found');
             }
             const userFetch = await this.usersService.searchUserByEmailOrUsernameOrId(decodedRefreshToken.userId);
             if (!userFetch || userFetch.id !== decodedRefreshToken.userId) {
-                res.clearCookie(this.refreshTokenName); // Clear invalid refresh token cookie in client
+                if (clientType === ClientType.WEB) res.clearCookie(this.refreshTokenName);
                 throw new ValidationException('User not found for the given refresh token');
             }
-            res.clearCookie(this.refreshTokenName); // Clear old refresh token cookie
-            return await this.login(userFetch as ISanitizedUser, res, decodedRefreshToken.deviceId); // Reuse login logic to generate new tokens and set cookie
+            if (clientType === ClientType.WEB) res.clearCookie(this.refreshTokenName);
+            return await this.login(userFetch as ISanitizedUser, res, decodedRefreshToken.deviceId, clientType);
         } catch (error: any) {
             if (error instanceof AppException) throw error;
             if (error?.name === 'TokenExpiredError') throw new UnauthorizedException('Refresh token has expired');
@@ -183,17 +184,17 @@ export class AuthService implements IAuthService {
         }
     }
 
-    async logout(user: ISanitizedUser, oldCookieRefreshToken: string, res: Response) {
+    async logout(user: ISanitizedUser, refreshToken: string, res: Response, clientType: ClientType) {
         try {
-            return await this.tokenService.logout(user.id, oldCookieRefreshToken, res);
+            return await this.tokenService.logout(user.id, refreshToken, res, clientType);
         } catch (error: any) {
             throw new InternalServerException(`Failed to logout user: ${error.message}`);
         }
     }
 
-    async logoutAll(user: ISanitizedUser, res: Response) {
+    async logoutAll(user: ISanitizedUser, res: Response, clientType: ClientType) {
         try {
-            return await this.tokenService.logoutAll(user.id, res);
+            return await this.tokenService.logoutAll(user.id, res, clientType);
         } catch (error: any) {
             throw new InternalServerException(`Failed to logout user from all sessions: ${error.message}`);
         }

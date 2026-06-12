@@ -1,6 +1,7 @@
 import type { Response } from 'express';
 import type { RequestUpdateUserOtpDto } from '@/users/dto/update-user.dto';
 import type { IUserEntity } from '@/users/interfaces/users.types';
+import { ClientType } from '@/common/enums/client-type.enum';
 import type {
   ISanitizedUser,
   IGoogleUser,
@@ -23,20 +24,20 @@ export interface IAuthService {
   verifyRegisterOtp(dto: IVerifyRegisterOtpDto): Promise<ISanitizedUser>;
   resendRegisterOtp(dto: IResendRegisterOtpDto): Promise<IRegisterResult>;
   sendChangePasswordOtp(dto: IVerifyEmailDto): Promise<IRegisterResult>;
-  verifyChangePasswordOtp(res: Response, dto: IChangePasswordVerifyDto): Promise<IPasswordResetResult>;
-  resetPassword(cookieResetToken: string, res: Response, dto: IResetPasswordDto): Promise<ISanitizedUser>;
+  verifyChangePasswordOtp(res: Response, dto: IChangePasswordVerifyDto, clientType: ClientType): Promise<IPasswordResetResult>;
+  resetPassword(resetToken: string, res: Response, dto: IResetPasswordDto, clientType: ClientType): Promise<ISanitizedUser>;
   validateUser(userNameOrEmail: string, password: string): Promise<ILocalValidateResult | null>;
-  login(user: ISanitizedUser, res: Response, deviceId: string): Promise<ILoginResult>;
-  refreshToken(oldCookieRefreshToken: string, res: Response): Promise<ILoginResult>;
+  login(user: ISanitizedUser, res: Response, deviceId: string, clientType: ClientType): Promise<ILoginResult>;
+  refreshToken(oldRefreshToken: string, res: Response, clientType: ClientType): Promise<ILoginResult>;
   googleLogin(googleUser: IGoogleUser, res: Response, deviceId: string): Promise<ILoginResult>;
-  logout(user: ISanitizedUser, oldCookieRefreshToken: string, res: Response): Promise<boolean>;
-  logoutAll(user: ISanitizedUser, res: Response): Promise<boolean>;
+  logout(user: ISanitizedUser, refreshToken: string, res: Response, clientType: ClientType): Promise<boolean>;
+  logoutAll(user: ISanitizedUser, res: Response, clientType: ClientType): Promise<boolean>;
 }
 
 export interface ITokenService {
-  login(user: ISanitizedUser, res: Response, deviceId: string): Promise<ILoginResult>;
-  logout(userId: string, refreshToken: string, res: Response): Promise<boolean>;
-  logoutAll(userId: string, res: Response): Promise<boolean>;
+  login(user: ISanitizedUser, res: Response, deviceId: string, clientType: ClientType): Promise<ILoginResult>;
+  logout(userId: string, refreshToken: string, res: Response, clientType: ClientType): Promise<boolean>;
+  logoutAll(userId: string, res: Response, clientType: ClientType): Promise<boolean>;
 }
 
 export interface IOtpService {
@@ -59,8 +60,8 @@ export interface IRegisterService {
 
 export interface IPasswordService {
   sendOtp(dto: IVerifyEmailDto): Promise<IRegisterResult>;
-  verifyOtp(res: Response, dto: IChangePasswordVerifyDto): Promise<IPasswordResetResult>;
-  resetPassword(cookieResetToken: string, res: Response, dto: IResetPasswordDto): Promise<ISanitizedUser>;
+  verifyOtp(res: Response, dto: IChangePasswordVerifyDto, clientType: ClientType): Promise<IPasswordResetResult>;
+  resetPassword(resetToken: string, res: Response, dto: IResetPasswordDto, clientType: ClientType): Promise<ISanitizedUser>;
 }
 
 export interface IGoogleService {

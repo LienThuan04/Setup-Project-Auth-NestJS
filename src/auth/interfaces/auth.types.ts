@@ -52,6 +52,7 @@ export interface ISanitizedUser {
 
 export interface ILoginResult {
   accessToken: string;
+  refreshToken?: string; // only present for mobile clients
   user: ISanitizedUser;
 }
 
@@ -109,4 +110,5 @@ export interface IResetPasswordDto {
 
 export interface IPasswordResetResult {
   expiresIn: string;
+  resetToken?: string; // only present for mobile clients
 }
