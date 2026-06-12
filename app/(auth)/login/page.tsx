@@ -1,5 +1,6 @@
 "use client"
 
+import { Suspense } from "react"
 import { LoginForm } from "@/features/auth/components/LoginForm"
 import { GalleryVerticalEndIcon } from "lucide-react"
 
@@ -17,7 +18,9 @@ export default function LoginPage() {
         </div>
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-xs">
-            <LoginForm />
+            <Suspense>
+              <LoginForm />
+            </Suspense>
           </div>
         </div>
       </div>

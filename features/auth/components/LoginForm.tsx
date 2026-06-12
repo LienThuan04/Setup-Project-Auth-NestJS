@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import Link from "next/link"
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { handleApiError } from "@/lib/handle-error";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
@@ -25,8 +26,17 @@ export function LoginForm({
   ...props
 }: React.ComponentProps<"form">) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const dispatch = useAppDispatch();
   const { isLoading } = useAppSelector(state => state.auth);
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    if (error) {
+      toast.error(decodeURIComponent(error));
+      router.replace(ROUTES.LOGIN);
+    }
+  }, [searchParams, router]);
 
   const handleGoogleLogin = () => {
     ensureDeviceId();
