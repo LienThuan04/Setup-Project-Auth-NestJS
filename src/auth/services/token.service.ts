@@ -5,8 +5,9 @@ import { SessionService } from '@/session/session.service';
 import { Response } from 'express';
 import { ValidationException } from '@/common/exceptions/app.exception';
 import { CookieSameSite } from '@/common/enums/cookie-same-site.enum';
+import { ClientType } from '@/common/enums/client-type.enum';
 import ms from 'ms';
-import type { ISanitizedUser } from '@/auth/interfaces/auth.types';
+import type { ISanitizedUser, ILoginResult } from '@/auth/interfaces/auth.types';
 import type { ITokenService } from '@/auth/interfaces/auth.service.interface';
 import { sanitizeUser } from '@/auth/helpers/sanitize.helper';
 
@@ -42,7 +43,7 @@ export class TokenService implements ITokenService {
         return this.jwtService.sign(payload, { expiresIn: expiresInMs, secret: this.refreshTokenSecret });
     }
 
-    async login(user: ISanitizedUser, res: Response, deviceId: string) {
+    async login(user: ISanitizedUser, res: Response, deviceId: string, clientType: ClientType = ClientType.WEB): Promise<ILoginResult> {
         const refreshToken = await this.generateRefreshToken({
             userId: user.id,
             _sub: {
@@ -57,18 +58,24 @@ export class TokenService implements ITokenService {
             throw new ValidationException('Failed to create session for the user');
         }
 
-        res.cookie(this.refreshTokenName, refreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: this.cookieSameSite,
-            maxAge: ms(this.expiresInRefresh as ms.StringValue)
-        });
+        if (clientType === ClientType.WEB) {
+            res.cookie(this.refreshTokenName, refreshToken, {
+                httpOnly: true,
+                secure: true,
+                sameSite: this.cookieSameSite,
+                maxAge: ms(this.expiresInRefresh as ms.StringValue)
+            });
+        }
 
         const payload = sanitizeUser(user);
-        return { accessToken: this.jwtService.sign(payload), user: payload };
+        const result: ILoginResult = { accessToken: this.jwtService.sign(payload), user: payload };
+        if (clientType === ClientType.MOBILE) {
+            result.refreshToken = refreshToken;
+        }
+        return result;
     }
 
-    async logout(userId: string, refreshToken: string, res: Response): Promise<boolean> {
+    async logout(userId: string, refreshToken: string, res: Response, clientType: ClientType = ClientType.WEB): Promise<boolean> {
         const decodedRefreshToken = this.jwtService.verify(refreshToken, { secret: this.refreshTokenSecret });
         if (!decodedRefreshToken || typeof decodedRefreshToken === 'string' || !decodedRefreshToken.userId ||
             !decodedRefreshToken._sub || !decodedRefreshToken.deviceId || typeof decodedRefreshToken.userId !== 'string' ||
@@ -78,7 +85,6 @@ export class TokenService implements ITokenService {
             console.error('Decoded refresh token payload is invalid:', decodedRefreshToken);
             throw new ValidationException('Invalid refresh token payload');
         }
-        // ✅ So sánh userId từ token với user đang logout
         if (decodedRefreshToken.userId !== userId) {
             throw new ValidationException('Token does not belong to this user');
         }
@@ -86,20 +92,24 @@ export class TokenService implements ITokenService {
         if (!result) {
             throw new ValidationException('Failed to delete session');
         }
-        res.clearCookie(this.refreshTokenName, {
-            httpOnly: true,
-            secure: true,
-            sameSite: this.cookieSameSite
-        });
+        if (clientType === ClientType.WEB) {
+            res.clearCookie(this.refreshTokenName, {
+                httpOnly: true,
+                secure: true,
+                sameSite: this.cookieSameSite
+            });
+        }
         return result;
     }
 
-    async logoutAll(userId: string, res: Response): Promise<boolean> {
+    async logoutAll(userId: string, res: Response, clientType: ClientType = ClientType.WEB): Promise<boolean> {
         const result = await this.sessionService.deleteSessionsByUserId(userId);
         if (!result) {
             throw new ValidationException('Failed to delete sessions');
         }
-        res.clearCookie(this.refreshTokenName);
+        if (clientType === ClientType.WEB) {
+            res.clearCookie(this.refreshTokenName);
+        }
         return result;
     }
 

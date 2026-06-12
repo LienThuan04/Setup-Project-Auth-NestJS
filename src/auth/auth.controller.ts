@@ -3,7 +3,7 @@ import { AuthService } from '@/auth/auth.service';
 import { Public } from '@/common/decorators/metadata';
 import { LoginDto, RegisterDto, VerifyRegisterOtpDto, ResendRegisterOtpDto, VerifyEmailDto, ChangePasswordVerifyDto, ResetPasswordDto } from '@/auth/dto/create-auth.dto';
 import type { Request, Response } from 'express';
-import { UserGoogle, User, DeviceId } from '@/common/decorators/user.decorator';
+import { UserGoogle, User, DeviceId, ClientType } from '@/common/decorators/user.decorator';
 import type { GoogleUser } from '@/auth/passport/google/google-user.interface';
 import { LocalAuthGuard } from '@/lib/passport/local-auth.guard';
 import { GoogleAuthGuard } from '@/lib/passport/google-auth.guard';
@@ -13,6 +13,7 @@ import { UnauthorizedException, InternalServerException, NotFoundException } fro
 import type { IPasswordResetResult, ISanitizedUser } from '@/auth/interfaces/auth.types';
 import type { IAuthController } from '@/auth/interfaces/auth.controller.interface';
 import { Throttle } from '@nestjs/throttler';
+import { ClientType as ClientTypeEnum } from '@/common/enums/client-type.enum';
 
 @Controller('auth')
 export class AuthController implements IAuthController {
@@ -69,32 +70,38 @@ export class AuthController implements IAuthController {
     @UseGuards(LocalAuthGuard)
     @ApiOperation({ summary: 'Login a user for a session and cookie management' })
     @Post('login')
-    async login(@Res({ passthrough: true }) res: Response, @User() user: ISanitizedUser, @Body() _loginDto: LoginDto, @DeviceId() deviceId: string) {
-        const result = await this.authService.login(user, res, deviceId);
+    async login(@Res({ passthrough: true }) res: Response, @User() user: ISanitizedUser, @Body() _loginDto: LoginDto, @DeviceId() deviceId: string, @ClientType() clientType: ClientTypeEnum) {
+        const result = await this.authService.login(user, res, deviceId, clientType);
         return {
             statusCode: 200,
             message: 'Login successful',
             data: {
                 accessToken: result.accessToken,
+                ...(result.refreshToken && { refreshToken: result.refreshToken }),
                 user: result.user,
             },
         };
     }
 
     @Public()
-    @ApiOperation({ summary: 'Refresh access token using a valid refresh token stored in cookies' }) // Add Swagger documentation for this endpoint
+    @ApiOperation({ summary: 'Refresh access token using a valid refresh token stored in cookies (web) or X-Refresh-Token header (mobile)' })
     @Post('refresh')
-    async refreshToken(@Res({ passthrough: true }) res: Response, @Req() req: Request) {
-        const oldCookieRefreshToken = req.cookies[this.refreshTokenName];
-        if (!oldCookieRefreshToken) {
-            throw new UnauthorizedException('Refresh token is missing in cookies');
+    async refreshToken(@Res({ passthrough: true }) res: Response, @Req() req: Request, @ClientType() clientType: ClientTypeEnum) {
+        let oldRefreshToken: string;
+        if (clientType === ClientTypeEnum.MOBILE) {
+            oldRefreshToken = req.headers['x-refresh-token'] as string;
+            if (!oldRefreshToken) throw new UnauthorizedException('Refresh token is missing in X-Refresh-Token header');
+        } else {
+            oldRefreshToken = req.cookies[this.refreshTokenName];
+            if (!oldRefreshToken) throw new UnauthorizedException('Refresh token is missing in cookies');
         }
-        const result = await this.authService.refreshToken(oldCookieRefreshToken, res);
+        const result = await this.authService.refreshToken(oldRefreshToken, res, clientType);
         return {
             statusCode: 200,
             message: 'Token refreshed successfully',
             data: {
                 accessToken: result.accessToken,
+                ...(result.refreshToken && { refreshToken: result.refreshToken }),
                 user: result.user,
             },
         };
@@ -133,8 +140,8 @@ export class AuthController implements IAuthController {
     @Throttle({ 'short-term': { ttl: 10, limit: 5 } })
     @Post('change-password/verify-otp')
     @ApiOperation({ summary: 'Verify OTP for password reset — returns a short-lived reset token to use in /change-password/reset' })
-    async verifyChangePasswordOtp(@Res({ passthrough: true }) res: Response, @Body() changePasswordVerifyDto: ChangePasswordVerifyDto) {
-        const result: IPasswordResetResult = await this.authService.verifyChangePasswordOtp(res, changePasswordVerifyDto);
+    async verifyChangePasswordOtp(@Res({ passthrough: true }) res: Response, @Body() changePasswordVerifyDto: ChangePasswordVerifyDto, @ClientType() clientType: ClientTypeEnum) {
+        const result: IPasswordResetResult = await this.authService.verifyChangePasswordOtp(res, changePasswordVerifyDto, clientType);
         return {
             statusCode: 200,
             message: `OTP verified. Use the reset token to set your new password within ${result.expiresIn}.`,
@@ -146,12 +153,16 @@ export class AuthController implements IAuthController {
     @Throttle({ 'short-term': { ttl: 10, limit: 5 } })
     @Post('change-password/reset')
     @ApiOperation({ summary: 'Set new password using the reset token received after OTP verification' })
-    async resetPassword(@Req() req: Request, @Res({ passthrough: true }) res: Response, @Body() resetPasswordDto: ResetPasswordDto) {
-        const cookieResetToken = req.cookies[this.resetPassNameToken] as string;
-        if (!cookieResetToken) {
-            throw new UnauthorizedException('Reset password token is missing in cookies');
+    async resetPassword(@Req() req: Request, @Res({ passthrough: true }) res: Response, @Body() resetPasswordDto: ResetPasswordDto, @ClientType() clientType: ClientTypeEnum) {
+        let resetToken: string;
+        if (clientType === ClientTypeEnum.MOBILE) {
+            resetToken = req.headers['x-reset-token'] as string;
+            if (!resetToken) throw new UnauthorizedException('Reset token is missing in X-Reset-Token header');
+        } else {
+            resetToken = req.cookies[this.resetPassNameToken] as string;
+            if (!resetToken) throw new UnauthorizedException('Reset password token is missing in cookies');
         }
-        const user = await this.authService.resetPassword(cookieResetToken, res, resetPasswordDto);
+        const user = await this.authService.resetPassword(resetToken, res, resetPasswordDto, clientType);
         return {
             statusCode: 200,
             message: 'Password changed successfully.',
@@ -160,13 +171,17 @@ export class AuthController implements IAuthController {
     }
 
     @Post('logout')
-    @ApiOperation({ summary: 'Logout the currently authenticated user' }) // Add Swagger documentation for this endpoint
-    async logout(@Res({ passthrough: true }) res: Response, @Req() req: Request, @User() user: ISanitizedUser) {
-        const oldCookieRefreshToken = req.cookies[this.refreshTokenName];
-        if (!oldCookieRefreshToken) {
-            throw new UnauthorizedException('Refresh token is missing in cookies');
+    @ApiOperation({ summary: 'Logout the currently authenticated user' })
+    async logout(@Res({ passthrough: true }) res: Response, @Req() req: Request, @User() user: ISanitizedUser, @ClientType() clientType: ClientTypeEnum) {
+        let refreshToken: string;
+        if (clientType === ClientTypeEnum.MOBILE) {
+            refreshToken = req.headers['x-refresh-token'] as string;
+            if (!refreshToken) throw new UnauthorizedException('Refresh token is missing in X-Refresh-Token header');
+        } else {
+            refreshToken = req.cookies[this.refreshTokenName];
+            if (!refreshToken) throw new UnauthorizedException('Refresh token is missing in cookies');
         }
-        const result: boolean = await this.authService.logout(user, oldCookieRefreshToken, res);
+        const result: boolean = await this.authService.logout(user, refreshToken, res, clientType);
         return {
             statusCode: 200,
             message: 'Logout successful',
@@ -175,9 +190,9 @@ export class AuthController implements IAuthController {
     }
 
     @Post('logout-all')
-    @ApiOperation({ summary: 'Logout the currently authenticated user from all devices' }) // Add Swagger documentation for this endpoint
-    async logoutAll(@Res({ passthrough: true }) res: Response, @User() user: ISanitizedUser) {
-        const result: boolean = await this.authService.logoutAll(user, res);
+    @ApiOperation({ summary: 'Logout the currently authenticated user from all devices' })
+    async logoutAll(@Res({ passthrough: true }) res: Response, @User() user: ISanitizedUser, @ClientType() clientType: ClientTypeEnum) {
+        const result: boolean = await this.authService.logoutAll(user, res, clientType);
         return {
             statusCode: 200,
             message: 'All sessions logged out successfully',

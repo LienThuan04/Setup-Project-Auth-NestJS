@@ -8,6 +8,7 @@ import { VerifyEmailDto, ChangePasswordVerifyDto, ResetPasswordDto } from '@/aut
 import { generatePasswordHash } from '@/lib/bcrypt/bcrypt';
 import { ConflictException, NotFoundException, ValidationException } from '@/common/exceptions/app.exception';
 import { AccountType } from '@/common/enums/account-type.enum';
+import { ClientType } from '@/common/enums/client-type.enum';
 import type { ISanitizedUser, IPasswordResetResult } from '@/auth/interfaces/auth.types';
 import type { IPasswordService } from '@/auth/interfaces/auth.service.interface';
 import { sanitizeUser } from '@/auth/helpers/sanitize.helper';
@@ -92,7 +93,7 @@ export class PasswordService implements IPasswordService {
     }
 
     // Step 2: verify OTP only — returns a short-lived JWT reset token
-    async verifyOtp(res: Response, dto: ChangePasswordVerifyDto): Promise<IPasswordResetResult> {
+    async verifyOtp(res: Response, dto: ChangePasswordVerifyDto, clientType: ClientType = ClientType.WEB): Promise<IPasswordResetResult> {
         const { email, otp } = dto;
 
         const pending = await this.prismaService.pendingRegistration.findUnique({ where: { email } });
@@ -119,23 +120,27 @@ export class PasswordService implements IPasswordService {
             { email, purpose: 'password-reset' } satisfies Omit<IPasswordResetJwtPayload, 'iat' | 'exp'>,
             { secret: this.resetTokenSecret, expiresIn: expiresInSeconds },
         );
-        res.cookie(this.resetPassNameToken, resetPassToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: this.cookieSameSite,
-            maxAge: ms(this.resetTokenExpire as ms.StringValue)
-        });
 
-        return { expiresIn: this.resetTokenExpire };
+        if (clientType === ClientType.WEB) {
+            res.cookie(this.resetPassNameToken, resetPassToken, {
+                httpOnly: true,
+                secure: true,
+                sameSite: this.cookieSameSite,
+                maxAge: ms(this.resetTokenExpire as ms.StringValue)
+            });
+            return { expiresIn: this.resetTokenExpire };
+        }
+
+        return { expiresIn: this.resetTokenExpire, resetToken: resetPassToken };
     }
 
     // Step 3: use reset token to set the new password
-    async resetPassword(cookieResetToken: string, res: Response, dto: ResetPasswordDto): Promise<ISanitizedUser> {
+    async resetPassword(resetToken: string, res: Response, dto: ResetPasswordDto, clientType: ClientType = ClientType.WEB): Promise<ISanitizedUser> {
         const { newPassword } = dto;
         let payload: IPasswordResetJwtPayload;
 
         try {
-            payload = this.jwtService.verify<IPasswordResetJwtPayload>(cookieResetToken, { secret: this.resetTokenSecret });
+            payload = this.jwtService.verify<IPasswordResetJwtPayload>(resetToken, { secret: this.resetTokenSecret });
         } catch {
             throw new ConflictException('Reset token is invalid or has expired. Please request a new OTP.');
         }
@@ -157,13 +162,15 @@ export class PasswordService implements IPasswordService {
             include: { role: { select: { roleName: true } } },
         });
         if (updatedUser) {
-            // Invalidate all existing sessions (force logout from all devices) and clear cookie 
+            // Invalidate all existing sessions (force logout from all devices)
             await this.prismaService.session.deleteMany({ where: { userId: updatedUser.id } });
-            res.clearCookie(this.resetPassNameToken, { 
-                httpOnly: true, 
-                secure: true, 
-                sameSite: this.cookieSameSite 
-            });
+            if (clientType === ClientType.WEB) {
+                res.clearCookie(this.resetPassNameToken, {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: this.cookieSameSite
+                });
+            }
         } else {
             throw new ConflictException('Failed to reset password. Please try again.');
         }
