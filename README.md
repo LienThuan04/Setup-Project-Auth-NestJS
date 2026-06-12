@@ -1299,10 +1299,11 @@ Create reusable decorators to mark routes as public, admin-only, and to extract 
   export const SkipAdminOnly = () => SetMetadata(IS_ADMIN_ONLY_KEY, false);
 ```
 
-- **`src/common/decorators/user.decorator.ts`** — extract user/deviceId from request
+- **`src/common/decorators/user.decorator.ts`** — extract user/deviceId/clientType from request
 ```typescript
   import { createParamDecorator, ExecutionContext, BadRequestException } from '@nestjs/common';
   import { Request } from 'express';
+  import { ClientType as ClientTypeEnum } from '@/common/enums/client-type.enum';
 
   // @User() — extract the authenticated user from request (attached by JwtStrategy)
   export const User = createParamDecorator((data: unknown, ctx: ExecutionContext) => {
@@ -1314,30 +1315,58 @@ Create reusable decorators to mark routes as public, admin-only, and to extract 
     return ctx.switchToHttp().getRequest().user;
   });
 
-  // @DeviceId() — read deviceId from cookie, required for login and refresh endpoints
+  // @ClientType() — resolves to ClientType.MOBILE when X-Client-Type: mobile header is present,
+  // otherwise defaults to ClientType.WEB. Set once in your HTTP client base config — not per request.
+  export const ClientType = createParamDecorator((data: unknown, ctx: ExecutionContext): ClientTypeEnum => {
+    const request = ctx.switchToHttp().getRequest<Request>();
+    return request.headers['x-client-type'] === 'mobile'
+      ? ClientTypeEnum.MOBILE
+      : ClientTypeEnum.WEB;
+  });
+
+  // @DeviceId() — reads from X-Device-ID header (mobile) first, falls back to cookie (web)
   export const DeviceId = createParamDecorator((data: unknown, ctx: ExecutionContext): string => {
     const deviceIdEnv = process.env.NAME_DEVICEID_CLIENT!;
     const request = ctx.switchToHttp().getRequest<Request>();
+    const fromHeader = request.headers['x-device-id'] as string | undefined;
+    if (fromHeader?.trim()) return fromHeader.trim();
     const deviceId = request.cookies?.[deviceIdEnv];
-    if (!deviceId?.trim()) throw new BadRequestException('Device ID not found in cookies');
+    if (!deviceId?.trim()) throw new BadRequestException('Device ID not found in X-Device-ID header or cookies');
     return deviceId;
   });
 ```
 
-- **Required env var:**
-```env
-  NAME_DEVICEID_CLIENT="deviceId"   # name of the cookie that carries deviceId from the frontend
+- **`src/common/enums/client-type.enum.ts`**
+```typescript
+  export enum ClientType {
+    WEB = 'web',
+    MOBILE = 'mobile',
+  }
 ```
 
-- **How the frontend sends deviceId (via cookie):**
+- **Required env var:**
+```env
+  NAME_DEVICEID_CLIENT="deviceId"   # name of the cookie that carries deviceId from the web frontend
+```
+
+- **Web: send deviceId via cookie (set once before login):**
 ```javascript
-  // Create and store deviceId in localStorage + cookie before calling login
   let deviceId = localStorage.getItem('deviceId');
   if (!deviceId) {
     deviceId = crypto.randomUUID();
     localStorage.setItem('deviceId', deviceId);
   }
   document.cookie = `deviceId=${deviceId}; path=/; max-age=31536000`;
+  // No X-Client-Type header needed — web is the default
+```
+
+- **Mobile: send via headers (configure once in HTTP client):**
+```typescript
+  // React Native — Axios example
+  axios.defaults.headers.common['X-Client-Type'] = 'mobile';
+  axios.defaults.headers.common['X-Device-ID'] = await SecureStore.getItemAsync('deviceId');
+  // After login, store refreshToken from response body and attach as:
+  axios.defaults.headers.common['X-Refresh-Token'] = storedRefreshToken;
 ```
 
 ---
@@ -1854,6 +1883,7 @@ export interface ISanitizedUser {
 ```typescript
 export interface ILoginResult {
   accessToken: string;
+  refreshToken?: string; // only present for mobile clients (X-Client-Type: mobile)
   user: ISanitizedUser;
 }
 
@@ -1875,9 +1905,11 @@ export interface IUserUpdateOtpRequestResult {
 }
 
 // returned after OTP verification for password reset
-// reset token is stored in httpOnly cookie, not exposed in response body
+// web: reset token stored in httpOnly cookie, only expiresIn in body
+// mobile: resetToken also returned in body
 export interface IPasswordResetResult {
   expiresIn: string;
+  resetToken?: string; // only present for mobile clients (X-Client-Type: mobile)
 }
 ```
 
@@ -1923,25 +1955,30 @@ export interface IResetPasswordDto {
 ### `src/auth/interfaces/auth.service.interface.ts`
 
 ```typescript
+// ClientType enum — used across service/controller signatures
+// WEB (default): cookie-based token transport
+// MOBILE: header-based token transport (X-Refresh-Token, X-Reset-Token)
+import { ClientType } from '@/common/enums/client-type.enum';
+
 export interface IAuthService {
   registerWithOTP(dto: IRegisterDto): Promise<IRegisterResult>;
   verifyRegisterOtp(dto: IVerifyRegisterOtpDto): Promise<ISanitizedUser>;
   resendRegisterOtp(dto: IResendRegisterOtpDto): Promise<IRegisterResult>;
   sendChangePasswordOtp(dto: IVerifyEmailDto): Promise<IRegisterResult>;
-  verifyChangePasswordOtp(res: Response, dto: IChangePasswordVerifyDto): Promise<IPasswordResetResult>;
-  resetPassword(cookieResetToken: string, res: Response, dto: IResetPasswordDto): Promise<ISanitizedUser>;
+  verifyChangePasswordOtp(res: Response, dto: IChangePasswordVerifyDto, clientType: ClientType): Promise<IPasswordResetResult>;
+  resetPassword(resetToken: string, res: Response, dto: IResetPasswordDto, clientType: ClientType): Promise<ISanitizedUser>;
   validateUser(userNameOrEmail: string, password: string): Promise<ILocalValidateResult | null>;
-  login(user: ISanitizedUser, res: Response, deviceId: string): Promise<ILoginResult>;
-  refreshToken(oldCookieRefreshToken: string, res: Response): Promise<ILoginResult>;
+  login(user: ISanitizedUser, res: Response, deviceId: string, clientType: ClientType): Promise<ILoginResult>;
+  refreshToken(oldRefreshToken: string, res: Response, clientType: ClientType): Promise<ILoginResult>;
   googleLogin(googleUser: IGoogleUser, res: Response, deviceId: string): Promise<ILoginResult>;
-  logout(user: ISanitizedUser, oldCookieRefreshToken: string, res: Response): Promise<boolean>;
-  logoutAll(user: ISanitizedUser, res: Response): Promise<boolean>;
+  logout(user: ISanitizedUser, refreshToken: string, res: Response, clientType: ClientType): Promise<boolean>;
+  logoutAll(user: ISanitizedUser, res: Response, clientType: ClientType): Promise<boolean>;
 }
 
 export interface ITokenService {
-  login(user: ISanitizedUser, res: Response, deviceId: string): Promise<ILoginResult>;
-  logout(userId: string, refreshToken: string, res: Response): Promise<boolean>;
-  logoutAll(userId: string, res: Response): Promise<boolean>;
+  login(user: ISanitizedUser, res: Response, deviceId: string, clientType: ClientType): Promise<ILoginResult>;
+  logout(userId: string, refreshToken: string, res: Response, clientType: ClientType): Promise<boolean>;
+  logoutAll(userId: string, res: Response, clientType: ClientType): Promise<boolean>;
 }
 
 // pure OTP logic — no DB access; caller handles DB operations via callbacks
@@ -1965,8 +2002,8 @@ export interface IRegisterService {
 
 export interface IPasswordService {
   sendOtp(dto: IVerifyEmailDto): Promise<IRegisterResult>;
-  verifyOtp(res: Response, dto: IChangePasswordVerifyDto): Promise<IPasswordResetResult>;
-  resetPassword(cookieResetToken: string, res: Response, dto: IResetPasswordDto): Promise<ISanitizedUser>;
+  verifyOtp(res: Response, dto: IChangePasswordVerifyDto, clientType: ClientType): Promise<IPasswordResetResult>;
+  resetPassword(resetToken: string, res: Response, dto: IResetPasswordDto, clientType: ClientType): Promise<ISanitizedUser>;
 }
 
 export interface IGoogleService {
@@ -1988,14 +2025,14 @@ export interface IAuthController {
   register(dto: IRegisterDto): Promise<IApiResponse<{ otpExpire: string }>>;
   verifyRegisterOtp(dto: IVerifyRegisterOtpDto): Promise<IApiResponse<ISanitizedUser>>;
   resendRegisterOtp(dto: IResendRegisterOtpDto): Promise<IApiResponse<{ otpExpire: string }>>;
-  login(res: Response, user: ISanitizedUser, dto: ILoginDto, deviceId: string): Promise<IApiResponse<ILoginResult>>;
-  refreshToken(res: Response, req: Request): Promise<IApiResponse<ILoginResult>>;
+  login(res: Response, user: ISanitizedUser, dto: ILoginDto, deviceId: string, clientType: ClientType): Promise<IApiResponse<ILoginResult>>;
+  refreshToken(res: Response, req: Request, clientType: ClientType): Promise<IApiResponse<ILoginResult>>;
   getProfile(user: ISanitizedUser): Promise<IApiResponse<{ user: ISanitizedUser }>>;
   changePasswordWithOtp(dto: IVerifyEmailDto): Promise<IApiResponse<{ otpExpire: string }>>;
-  verifyChangePasswordOtp(res: Response, dto: IChangePasswordVerifyDto): Promise<IApiResponse<IPasswordResetResult>>;
-  resetPassword(req: Request, res: Response, dto: IResetPasswordDto): Promise<IApiResponse<ISanitizedUser>>;
-  logout(res: Response, req: Request, user: ISanitizedUser): Promise<IApiResponse<{ result: boolean }>>;
-  logoutAll(res: Response, user: ISanitizedUser): Promise<IApiResponse<{ result: boolean }>>;
+  verifyChangePasswordOtp(res: Response, dto: IChangePasswordVerifyDto, clientType: ClientType): Promise<IApiResponse<IPasswordResetResult>>;
+  resetPassword(req: Request, res: Response, dto: IResetPasswordDto, clientType: ClientType): Promise<IApiResponse<ISanitizedUser>>;
+  logout(res: Response, req: Request, user: ISanitizedUser, clientType: ClientType): Promise<IApiResponse<{ result: boolean }>>;
+  logoutAll(res: Response, user: ISanitizedUser, clientType: ClientType): Promise<IApiResponse<{ result: boolean }>>;
   googleAuth(): void;
   googleAuthRedirect(googleUser: IGoogleUser, deviceId: string, res: Response): Promise<void | IApiResponse<ILoginResult>>;
 }
@@ -2056,9 +2093,10 @@ export interface IRequestUpdateOtpApiResponse {
 **Key Points:**
 - Always use `import type` when importing interfaces to prevent circular dependencies and avoid emitting unnecessary JS
 - `ISanitizedUser` is used everywhere user data needs to be returned — never return raw Prisma objects outside the service layer
-- `IPasswordResetResult` only has `expiresIn` because the reset token lives in an httpOnly cookie, not in the response body
+- `ILoginResult.refreshToken?` and `IPasswordResetResult.resetToken?` are optional — only populated for mobile clients (`X-Client-Type: mobile`); web clients receive tokens via httpOnly cookies instead
 - `IOtpService.verify()` uses the **callback pattern** — the service has no direct DB access; the caller provides cleanup and attempt-increment callbacks
-- `IAuthService.resetPassword()` receives `cookieResetToken: string` (extracted from cookie before calling the service) rather than the full `Request` object
+- `IAuthService.resetPassword()` receives `resetToken: string` (extracted from cookie or `X-Reset-Token` header by the controller before calling the service) rather than the full `Request` object
+- All token-sending methods (`login`, `logout`, `logoutAll`, `verifyOtp`, `resetPassword`) accept `clientType: ClientType` to conditionally set/clear cookies (web) or skip cookie ops (mobile)
 
 ---
 

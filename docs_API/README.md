@@ -34,13 +34,14 @@ A reusable NestJS authentication starter. Every endpoint, model, request body, a
 |---|---|
 | Registration | Two-step flow: submit form → verify OTP via email |
 | Login | Local (email/password) and Google OAuth2 |
-| Token system | Short-lived access token (header) + long-lived refresh token (httpOnly cookie) |
+| Token system | Short-lived access token (header) + long-lived refresh token (httpOnly cookie for web / response body for mobile) |
 | Session management | One session per device; configurable device limit per user |
-| Password reset | Three-step flow: request OTP → verify OTP → reset (token via httpOnly cookie) |
+| Password reset | Three-step flow: request OTP → verify OTP → reset (token via httpOnly cookie for web / response body for mobile) |
 | Profile update | OTP-protected update of email/username; description updates instantly |
 | Role-based access | `@AdminOnly()` guard; `@SkipAdminOnly()` for per-method override |
 | File storage | Supabase Storage for avatar and background images |
 | Rate limiting | `@nestjs/throttler` v6 — 4 named throttlers, per-route override via `@Throttle()` |
+| Multi-client support | Same server serves web browsers, mobile apps (React Native, Flutter), and desktop apps — client declares type via `X-Client-Type` header |
 
 ---
 
@@ -83,19 +84,27 @@ http://localhost:8080/swagger
 Authorization: Bearer <accessToken>
 ```
 
-### Refresh Token
+### Multi-Client Support (Web & Mobile)
 
-- Stored in an `httpOnly` cookie named `NAME_COOKIE_REFRESH_TOKEN_BROWSER` (default `refreshToken`)
-- Sent automatically by the browser
-- Expires after `JWT_REFRESH_EXPIRE` (default `1d`)
+The server serves both web browsers and native mobile/desktop apps from the same endpoints. The client declares its type once via a request header:
 
-### Device ID
+```http
+X-Client-Type: mobile
+```
 
-- A UUID that the frontend generates once and stores in `localStorage` + a plain cookie
-- Cookie name is `NAME_DEVICEID_CLIENT` (default `deviceId`)
-- Required for `POST /auth/login` and `POST /auth/refresh`
+If the header is absent, the server defaults to `web` behavior (no breaking change for existing web clients).
 
-**Frontend setup (run once before login):**
+**Token transport by client type:**
+
+| Token | Web | Mobile |
+|---|---|---|
+| **Device ID** | Cookie (`NAME_DEVICEID_CLIENT`) | `X-Device-ID` header |
+| **Refresh token — receive** | `Set-Cookie` (httpOnly, auto-sent by browser) | Response body field `refreshToken` |
+| **Refresh token — send** | Cookie (auto-sent by browser) | `X-Refresh-Token` header |
+| **Reset token — receive** | `Set-Cookie` (httpOnly, auto-sent by browser) | Response body field `resetToken` |
+| **Reset token — send** | Cookie (auto-sent by browser) | `X-Reset-Token` header |
+
+**Client setup — Web (run once before login):**
 
 ```javascript
 let deviceId = localStorage.getItem('deviceId');
@@ -104,7 +113,44 @@ if (!deviceId) {
     localStorage.setItem('deviceId', deviceId);
 }
 document.cookie = `deviceId=${deviceId}; path=/; max-age=31536000`;
+// No X-Client-Type header needed — web is the default
 ```
+
+**Client setup — Mobile (set once in HTTP client config):**
+
+```typescript
+// React Native — Axios example (configure once at app init)
+import axios from 'axios';
+
+const deviceId = await SecureStore.getItemAsync('deviceId') ?? crypto.randomUUID();
+await SecureStore.setItemAsync('deviceId', deviceId);
+
+axios.defaults.headers.common['X-Client-Type'] = 'mobile';
+axios.defaults.headers.common['X-Device-ID'] = deviceId;
+// Store returned refreshToken in SecureStorage and attach as X-Refresh-Token on each request
+```
+
+**Which clients use which behavior:**
+
+| Client type | Uses |
+|---|---|
+| Web browser | Web (default) |
+| Electron app | Web (has Chromium cookie support) |
+| React Native / Flutter | Mobile (`X-Client-Type: mobile`) |
+| Native desktop (C#, Java, Python) | Mobile (`X-Client-Type: mobile`) |
+| Tauri + WebView | Web |
+| Tauri + Rust HTTP client | Mobile |
+
+### Refresh Token
+
+- **Web:** Stored in `httpOnly` cookie `NAME_COOKIE_REFRESH_TOKEN_BROWSER` (default `refreshToken`). Sent automatically by the browser. Expires after `JWT_REFRESH_EXPIRE` (default `1d`).
+- **Mobile:** Returned in response body as `refreshToken` field. Store in `SecureStorage`. Send back via `X-Refresh-Token` header.
+
+### Device ID
+
+- A UUID identifying the current device/session.
+- **Web:** Frontend generates once, stores in `localStorage` + plain cookie (`NAME_DEVICEID_CLIENT`, default `deviceId`).
+- **Mobile:** App generates once, stores in `SecureStorage`, sends via `X-Device-ID` header on every request.
 
 ### Route Access Levels
 
@@ -411,15 +457,16 @@ Resend a new OTP for an in-progress registration. Subject to `OTP_RESEND_COOLDOW
 
 ### POST `/auth/login`
 
-Authenticate with email or username + password. Returns an access token in the body and sets the refresh token as an httpOnly cookie.
+Authenticate with email or username + password.
 
 **Access:** Public (runs `LocalAuthGuard` to validate credentials before the handler)
 
-**Required Cookie before calling:**
+**Device ID — required, client-type dependent:**
 
-```
-deviceId=<uuid>
-```
+| Client | How to send |
+|---|---|
+| Web | Cookie `deviceId=<uuid>` (set before calling) |
+| Mobile | Header `X-Device-ID: <uuid>` |
 
 **Request Body:**
 
@@ -435,7 +482,7 @@ deviceId=<uuid>
 | `userNameOrEmail` | string | 3–100 chars |
 | `password` | string | 6–50 chars |
 
-**Success `200`:**
+**Success `200` — Web:**
 
 Sets cookie: `refreshToken=<jwt>; HttpOnly; Secure; SameSite=Lax`
 
@@ -445,18 +492,23 @@ Sets cookie: `refreshToken=<jwt>; HttpOnly; Secure; SameSite=Lax`
   "message": "Login successful",
   "data": {
     "accessToken": "eyJhbGci...",
-    "user": {
-      "id": "uuid",
-      "email": "john@example.com",
-      "userName": "johndoe",
-      "accountType": "local",
-      "roleName": "USER",
-      "avatarUrl": null,
-      "backgroundUrl": null,
-      "description": null,
-      "googleId": null,
-      "roleId": "uuid"
-    }
+    "user": { "id": "uuid", "email": "john@example.com", ... }
+  }
+}
+```
+
+**Success `200` — Mobile (`X-Client-Type: mobile`):**
+
+No cookie is set. `refreshToken` is returned in the body — store it in `SecureStorage`.
+
+```json
+{
+  "statusCode": 200,
+  "message": "Login successful",
+  "data": {
+    "accessToken": "eyJhbGci...",
+    "refreshToken": "eyJhbGci...",
+    "user": { "id": "uuid", "email": "john@example.com", ... }
   }
 }
 ```
@@ -465,25 +517,25 @@ Sets cookie: `refreshToken=<jwt>; HttpOnly; Secure; SameSite=Lax`
 
 | Status | Code | Reason |
 |---|---|---|
-| 400 | `HTTP_EXCEPTION` | Missing `deviceId` cookie |
+| 400 | `HTTP_EXCEPTION` | Missing device ID (cookie or header) |
 | 401 | `UNAUTHORIZED` | Wrong credentials |
 
 ---
 
 ### POST `/auth/refresh`
 
-Exchange the refresh token cookie for a new access token. Rotates the refresh token (old cookie is replaced with a new one).
+Exchange the refresh token for a new access token. Rotates the refresh token (old token is replaced with a new one).
 
 **Access:** Public
 
-**Required Cookies:**
+**Required — client-type dependent:**
 
-```
-refreshToken=<jwt>
-deviceId=<uuid>
-```
+| Client | How to send refresh token |
+|---|---|
+| Web | Cookie `refreshToken=<jwt>` (auto-sent by browser) |
+| Mobile | Header `X-Refresh-Token: <jwt>` |
 
-**Success `200`:**
+**Success `200` — Web:**
 
 Sets new cookie: `refreshToken=<new_jwt>; HttpOnly; Secure; SameSite=Lax`
 
@@ -498,11 +550,27 @@ Sets new cookie: `refreshToken=<new_jwt>; HttpOnly; Secure; SameSite=Lax`
 }
 ```
 
+**Success `200` — Mobile (`X-Client-Type: mobile`):**
+
+No cookie is set. New `refreshToken` is returned in body — update the stored value in `SecureStorage`.
+
+```json
+{
+  "statusCode": 200,
+  "message": "Token refreshed successfully",
+  "data": {
+    "accessToken": "eyJhbGci...",
+    "refreshToken": "eyJhbGci...",
+    "user": { ... }
+  }
+}
+```
+
 **Errors:**
 
 | Status | Code | Reason |
 |---|---|---|
-| 401 | `UNAUTHORIZED` | Refresh token cookie missing |
+| 401 | `UNAUTHORIZED` | Refresh token missing (cookie or header) |
 | 401 | `UNAUTHORIZED` | Refresh token invalid or expired |
 | 401 | `UNAUTHORIZED` | Session not found (logged out on another device) |
 
@@ -584,7 +652,7 @@ Only local accounts (`accountType = "local"`) can reset passwords — Google acc
 
 ### POST `/auth/change-password/verify-otp`
 
-**Step 2 of password reset.** Verify the OTP. On success, a short-lived JWT reset token is signed and stored in an **httpOnly cookie**. The response body only contains `expiresIn` — the token itself is never exposed.
+**Step 2 of password reset.** Verify the OTP. On success, a short-lived JWT reset token is issued.
 
 **Access:** Public
 
@@ -597,7 +665,7 @@ Only local accounts (`accountType = "local"`) can reset passwords — Google acc
 }
 ```
 
-**Success `200`:**
+**Success `200` — Web:**
 
 Sets cookie: `resetPassToken=<jwt>; HttpOnly; Secure; SameSite=Lax`
 
@@ -607,6 +675,21 @@ Sets cookie: `resetPassToken=<jwt>; HttpOnly; Secure; SameSite=Lax`
   "message": "OTP verified. Use the reset token to set your new password within 10m.",
   "data": {
     "expiresIn": "10m"
+  }
+}
+```
+
+**Success `200` — Mobile (`X-Client-Type: mobile`):**
+
+No cookie is set. `resetToken` is returned in body — store it temporarily and send back via `X-Reset-Token` header on the next step.
+
+```json
+{
+  "statusCode": 200,
+  "message": "OTP verified. Use the reset token to set your new password within 10m.",
+  "data": {
+    "expiresIn": "10m",
+    "resetToken": "eyJhbGci..."
   }
 }
 ```
@@ -624,15 +707,16 @@ Sets cookie: `resetPassToken=<jwt>; HttpOnly; Secure; SameSite=Lax`
 
 ### POST `/auth/change-password/reset`
 
-**Step 3 of password reset.** Reads the reset token from the httpOnly cookie, verifies it, sets the new password, deletes **all active sessions** (force-logout from every device), and clears the reset cookie.
+**Step 3 of password reset.** Verifies the reset token, sets the new password, deletes **all active sessions** (force-logout from every device), and clears the reset token.
 
 **Access:** Public
 
-**Required Cookie:**
+**Required reset token — client-type dependent:**
 
-```
-resetPassToken=<jwt>
-```
+| Client | How to send |
+|---|---|
+| Web | Cookie `resetPassToken=<jwt>` (auto-sent by browser) |
+| Mobile | Header `X-Reset-Token: <jwt>` (from step 2 response body) |
 
 **Request Body:**
 
@@ -648,7 +732,7 @@ resetPassToken=<jwt>
 
 **Success `200`:**
 
-Clears the `resetPassToken` cookie.
+Web: clears the `resetPassToken` cookie. Mobile: no cookie operation.
 
 ```json
 {
@@ -673,7 +757,7 @@ Clears the `resetPassToken` cookie.
 
 | Status | Code | Reason |
 |---|---|---|
-| 401 | `UNAUTHORIZED` | Reset token cookie missing |
+| 401 | `UNAUTHORIZED` | Reset token missing (cookie or header) |
 | 409 | `CONFLICT` | Reset token invalid or expired |
 | 404 | `NOT_FOUND` | User not found |
 
@@ -681,19 +765,20 @@ Clears the `resetPassToken` cookie.
 
 ### POST `/auth/logout`
 
-Logout from the current device. Deletes the session from the DB and clears the refresh token cookie.
+Logout from the current device. Deletes the session from the DB and clears the refresh token.
 
 **Access:** JWT required
 
-**Required Cookie:**
+**Required refresh token — client-type dependent:**
 
-```
-refreshToken=<jwt>
-```
+| Client | How to send |
+|---|---|
+| Web | Cookie `refreshToken=<jwt>` (auto-sent by browser) |
+| Mobile | Header `X-Refresh-Token: <jwt>` |
 
 **Success `200`:**
 
-Clears the `refreshToken` cookie.
+Web: clears the `refreshToken` cookie. Mobile: no cookie operation.
 
 ```json
 {
@@ -707,7 +792,7 @@ Clears the `refreshToken` cookie.
 
 | Status | Code | Reason |
 |---|---|---|
-| 401 | `UNAUTHORIZED` | Refresh token cookie missing |
+| 401 | `UNAUTHORIZED` | Refresh token missing (cookie or header) |
 
 ---
 
@@ -1511,13 +1596,22 @@ Google OAuth
   GET  /auth/google/callback                 → redirect to frontend with token
 ```
 
-### Cookie Summary
+### Cookie Summary (Web only)
 
 | Cookie | Set by | Cleared by | httpOnly |
 |---|---|---|---|
 | `refreshToken` | `POST /auth/login`, `POST /auth/refresh` | `POST /auth/logout`, `POST /auth/logout-all` | Yes |
 | `resetPassToken` | `POST /auth/change-password/verify-otp` | `POST /auth/change-password/reset` | Yes |
 | `deviceId` | Frontend (before login) | Frontend manages it | No |
+
+### Multi-Client Header Summary
+
+| Header | Direction | Used by | Purpose |
+|---|---|---|---|
+| `X-Client-Type: mobile` | Request | Mobile/native apps | Declare client type; omit for web (default) |
+| `X-Device-ID: <uuid>` | Request | Mobile | Device identifier (replaces `deviceId` cookie) |
+| `X-Refresh-Token: <jwt>` | Request | Mobile | Send refresh token (replaces cookie on refresh/logout) |
+| `X-Reset-Token: <jwt>` | Request | Mobile | Send reset token (replaces cookie on password reset step 3) |
 
 ### Endpoint Access Summary
 
