@@ -8,6 +8,7 @@ import cookieParser from 'cookie-parser';
 import { setupCors } from '@/config/cors.config';
 import { validationConfig } from '@/config/validation.config';
 import { setupAppConfig } from '@/config/app-setup.config';
+import * as os from 'os';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -25,7 +26,7 @@ async function bootstrap() {
 
   // setup the versioning and global prefix for all routes
   const { globalPrefix, version } = setupAppConfig(app);
- // Custom Validation Pipe with error formatting and automatic transformation
+  // Custom Validation Pipe with error formatting and automatic transformation
   validationConfig(app);
 
   // Add cookie-parser middleware to handle cookies in requests and responses, which is essential for managing refresh tokens stored in cookies.
@@ -36,13 +37,21 @@ async function bootstrap() {
 
   const host = configService.get<string>('HOST');
   const port = configService.get<number>('PORT') ?? 3000;
+  const lanIp = Object.values(os.networkInterfaces())
+    .flat() /* Flatten the array of network interfaces */
+    .find((iface) => iface?.family === 'IPv4' && !iface.internal)?.address; /* Find the first non-internal IPv4 address */
 
   await app.listen(port);
-  logger.log(`Application is running on: http://${host}:${port}/${globalPrefix}/v${version}`);
-  logger.log(`Swagger is running on: http://${host}:${port}/swagger`);
-}
+  if (host && port) {
+    logger.log(`Application is running on: http://${host}:${port}/${globalPrefix}/v${version}`);
+    logger.log(`Swagger is running on: http://${host}:${port}/swagger`);
+    if (lanIp) {
+      logger.log(`Application is also accessible on the local network at: http://${lanIp}:${port}/${globalPrefix}/v${version}`);
+    }
+  }
 
-bootstrap().catch((err) => {
-  new Logger('Bootstrap').error('Failed to start application', err);
-  process.exit(1);
-});
+  bootstrap().catch((err) => {
+    new Logger('Bootstrap').error('Failed to start application', err);
+    process.exit(1);
+  });
+}
