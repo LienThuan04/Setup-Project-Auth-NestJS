@@ -87,6 +87,7 @@ export class ChangePasswordVerifyDto {
 
 export class ResetPasswordDto {
     @ApiProperty({ example: 'newpassword123', description: 'The new password' })
+    @IsNotEmpty({ message: 'New password must not be empty' })
     @IsString({ message: 'New password must be a string' })
     @MinLength(6, { message: 'New password must be at least 6 characters long' })
     @MaxLength(50, { message: 'New password must be at most 50 characters long' })

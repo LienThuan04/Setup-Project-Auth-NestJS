@@ -67,7 +67,6 @@ export interface IOtpGenerationResult {
   resendAfter: Date;
 }
 
-
 export interface IUserUpdateOtpRequestResult {
   skipOtp: boolean;
   message: string;
