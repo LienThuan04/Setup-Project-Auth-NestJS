@@ -49,9 +49,9 @@ async function bootstrap() {
       logger.log(`Application is also accessible on the local network at: http://${lanIp}:${port}/${globalPrefix}/v${version}`);
     }
   }
+};
 
-  bootstrap().catch((err) => {
-    new Logger('Bootstrap').error('Failed to start application', err);
-    process.exit(1);
-  });
-}
+bootstrap().catch((err) => {
+  new Logger('Bootstrap').error('Failed to start application', err);
+  process.exit(1);
+});

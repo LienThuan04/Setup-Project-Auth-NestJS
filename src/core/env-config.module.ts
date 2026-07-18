@@ -1,3 +1,4 @@
+import { validateEnv } from '@/config/env.validation';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
@@ -11,6 +12,7 @@ import { ConfigModule } from '@nestjs/config';
         '.env.local',
         '.env',
       ],
+      validate: validateEnv
     }),
   ],
 })
