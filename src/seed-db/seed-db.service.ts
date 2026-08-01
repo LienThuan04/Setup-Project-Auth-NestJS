@@ -113,7 +113,7 @@ export class SeedDbService implements OnModuleInit {
 
     async onModuleInit() {
         const shouldSeed = this.configService.get<string>('SEED_DB') === 'true';
-        const shouldClear = this.configService.get<string>('CLEAR_DB') === 'false' ? false : true; // Mặc định là true nếu không có biến môi trường CLEAR_DB hoặc nếu CLEAR_DB không phải 'false'
+        const shouldClear = this.configService.get<string>('CLEAR_DB') === 'true' ? true : false; // Mặc định là false nếu không có biến môi trường CLEAR_DB hoặc nếu CLEAR_DB không phải 'true'
 
         // Log cấu hình
         this.logger.log(`SEED_DB: ${shouldSeed}, CLEAR_DB: ${shouldClear}`);
