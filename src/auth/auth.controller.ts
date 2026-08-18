@@ -70,7 +70,7 @@ export class AuthController implements IAuthController {
     @UseGuards(LocalAuthGuard)
     @ApiOperation({ summary: 'Login a user for a session and cookie management' })
     @Post('login')
-    async login(@Res({ passthrough: true }) res: Response, @User() user: ISanitizedUser, @Body() _loginDto: LoginDto, @DeviceId() deviceId: string, @ClientType() clientType: ClientTypeEnum) {
+    async login(@Res({ passthrough: true }) res: Response, @User() user: ISanitizedUser, @Body() loginDto: LoginDto, @DeviceId() deviceId: string, @ClientType() clientType: ClientTypeEnum) {
         const result = await this.authService.login(user, res, deviceId, clientType);
         return {
             statusCode: 200,
